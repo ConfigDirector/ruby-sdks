@@ -59,18 +59,20 @@ warning or deprecation, and on an example left focused, skipped or pending.
 
 `make verify-ruby` prints the version of the Ruby that runs it and fails when that release lacks the fixes above;
 every CI job runs it first. `make verify-lock` fails when a `Gemfile.lock` no longer matches its `Gemfile` and
-gemspec. `make build` builds each gem into `dist/` with
-`gem build --strict`, which fails on any warning about the gemspec. `make audit` runs `bundle-audit` against
-each lock with the latest advisory database.
+gemspec. `make build` builds each gem into `dist/` with `gem build --strict`, which fails on any warning about the
+gemspec. `make audit` runs `bundle-audit` against each lock with the latest advisory database.
+
+`make test-lowest` runs the suites with each runtime dependency of the gemspec at the lowest version the gemspec
+allows, such as `logger` 1.6 for `~> 1.6`, so they fail when the code needs something newer than that floor.
+Bundler resolves those versions into a throwaway `Gemfile` and lock, so the committed locks stay as they are.
 
 `make check-floor` runs `make verify-ruby verify-lock lint test` for each gem in the official image of its oldest
-Ruby line,
-`ruby:3.3` for the SDK and `ruby:3.4` for the provider, pulled again on every run so that it is the newest release
-of that line, on a copy of this working tree.
+Ruby line, `ruby:3.3` for the SDK and `ruby:3.4` for the provider, pulled again on every run so that it is the
+newest release of that line, on a copy of this working tree.
 
 CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu and on Ruby 4.0 on macOS and Windows, the provider's
-suite on Ruby 3.4 and 4.0 on Ubuntu, and the lint, build and audit on Ruby 4.0. Locally, `make check-all` covers
-your own Ruby and, through `make check-floor`, each gem's oldest Ruby line.
+suite on Ruby 3.4 and 4.0 on Ubuntu, and `make test-lowest`, the lint, build and audit on Ruby 4.0. Locally,
+`make check-all` covers your own Ruby and, through `make check-floor`, each gem's oldest Ruby line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
 there rather than in either of them.

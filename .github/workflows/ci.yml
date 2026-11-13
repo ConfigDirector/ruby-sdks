@@ -34,6 +34,20 @@ jobs:
       - run: make build
       - run: make audit
 
+  lowest:
+    name: Test (lowest allowed dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+
+      - run: make verify-ruby
+      - run: make test-lowest
+
   sdk:
     name: Test configdirector-server-sdk (Ruby ${{ matrix.ruby }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

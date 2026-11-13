@@ -1,4 +1,4 @@
-.PHONY: install hooks verify-ruby verify-lock format lint test build audit check-floor _check-floor check check-all clean
+.PHONY: install hooks verify-ruby verify-lock format lint test test-lowest build audit check-floor _check-floor check check-all clean
 
 # Every gem this repository publishes, each in a directory named after it. Narrow a target to one of them with,
 # for example, `make test GEMS=configdirector-server-sdk`.
@@ -50,6 +50,20 @@ test: install
 		(cd "$$gem" && bundle exec rspec) || exit 1; \
 	done
 
+# The same suites against the lowest version of each runtime dependency that the gemspec allows. Without this a
+# floor such as `logger ~> 1.6` is only ever a guess, because the lock picks the newest. Bundler resolves into a
+# throwaway Gemfile and lock, so the committed lock stays as it is.
+test-lowest:
+	@for gem in $(GEMS); do \
+		printf '\n\033[1m==> test-lowest %s\033[0m\n' "$$gem"; \
+		lowest=$$(mktemp -d); \
+		ruby tools/lowest-dependencies-gemfile.rb "$$gem" > "$$lowest/Gemfile" \
+			&& (cd "$$gem" \
+				&& BUNDLE_GEMFILE="$$lowest/Gemfile" bundle install --quiet \
+				&& BUNDLE_GEMFILE="$$lowest/Gemfile" bundle exec rspec); \
+		status=$$?; rm -rf "$$lowest"; [ "$$status" -eq 0 ] || exit "$$status"; \
+	done
+
 # One .gem file per gem under dist/. --strict turns every warning about the gemspec into a failure.
 build:
 	@rm -rf dist
@@ -87,7 +101,7 @@ _check-floor:
 check: lint test
 
 # Everything CI runs. The pre-push hook calls this.
-check-all: verify-ruby verify-lock lint test build audit check-floor
+check-all: verify-ruby verify-lock lint test test-lowest build audit check-floor
 	@printf '\n\033[1m✓ all checks passed\033[0m\n'
 
 clean:
