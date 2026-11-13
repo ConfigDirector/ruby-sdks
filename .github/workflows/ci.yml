@@ -1,0 +1,80 @@
+name: ruby-sdks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The checks themselves live in the Makefile so that CI and the pre-push hook cannot drift
+# apart. bash everywhere keeps the make recipes portable across the runner images.
+defaults:
+  run:
+    shell: bash
+
+# Each job sets up the newest patch release of its Ruby line, which verify-ruby checks for the
+# regular expression fixes of 2026-10-23.
+jobs:
+  lint:
+    name: Lint, build and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+
+      - run: make verify-ruby
+      - run: make verify-lock
+      - run: make lint
+      - run: make build
+      - run: make audit
+
+  sdk:
+    name: Test configdirector-server-sdk (Ruby ${{ matrix.ruby }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        ruby: ["3.3", "3.4", "4.0"]
+        include:
+          - os: macos-latest
+            ruby: "4.0"
+          - os: windows-latest
+            ruby: "4.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+
+      - run: make verify-ruby
+      - run: make verify-lock GEMS=configdirector-server-sdk
+      - run: make test GEMS=configdirector-server-sdk
+
+  provider:
+    name: Test configdirector-openfeature-server-provider (Ruby ${{ matrix.ruby }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        ruby: ["3.4", "4.0"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+
+      - run: make verify-ruby
+      - run: make verify-lock GEMS=configdirector-openfeature-server-provider
+      - run: make test GEMS=configdirector-openfeature-server-provider

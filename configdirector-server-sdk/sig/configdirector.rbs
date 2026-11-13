@@ -1,0 +1,3 @@
+module ConfigDirector
+  VERSION: String
+end

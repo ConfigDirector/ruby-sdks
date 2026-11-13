@@ -1,0 +1,12 @@
+/dist/
+*.gem
+.bundle/
+vendor/
+
+.env
+
+.DS_Store
+.idea/
+*.swp
+.claude
+.vscode

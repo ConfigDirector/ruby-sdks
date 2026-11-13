@@ -1,0 +1,13 @@
+AllCops:
+  NewCops: enable
+  SuggestExtensions: false
+
+Naming/FileName:
+  Exclude:
+    - lib/configdirector-openfeature-server-provider.rb
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
