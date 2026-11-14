@@ -33,7 +33,14 @@ Each gemspec reads its version from the text of its `version.rb` rather than req
 the gemspec of a gem named by its path before `Bundler.require` runs, so a required `version.rb` would define the
 gem's module before the gem is loaded.
 
-`samples/` is reserved for sample applications. They will install the gems the way an application does.
+`samples/` holds sample applications, grouped by the gem they demonstrate. Each is its own Bundler project, with
+its own `Gemfile` and committed `Gemfile.lock`, and its committed `.bundle/config` installs its gems into the
+sample's `vendor/bundle` rather than into Ruby's gem directory: Homebrew's Ruby links the RubyGems plugin of `rdoc`
+to a read-only file, so installing a newer `rdoc`, which every Rails application needs, into Homebrew's gem
+directory fails with `Permission denied`. Until a gem's first release, its samples take it from this working tree
+through a `path:` entry, which the release will replace with a released version. A sample's lock lists Linux and
+macOS platforms only, unlike the gems' locks: the Rails sample runs Puma in cluster mode, which needs `fork`, so CI
+runs the samples on Ubuntu alone, and on Windows the Makefile targets take `SAMPLES=`.
 
 ## Working on the gems
 
@@ -43,14 +50,18 @@ macOS, `brew install ruby` installs a patched Ruby 4.0; Homebrew does not put it
 `/opt/homebrew/opt/ruby/bin` in front of the system Ruby.
 
 ```sh
-make install     # bundle install, every gem
-make hooks       # pre-push hook that runs make check-all
-make check       # lint and test: the fast loop
-make check-floor # lint and test on each gem's oldest Ruby, in Docker
-make check-all   # everything CI runs
+make install       # bundle install, every gem and sample
+make hooks         # pre-push hook that runs make check-all
+make check         # lint and test: the fast loop
+make samples-local # the samples' suites against this working tree
+make check-floor   # lint and test on each gem's oldest Ruby, in Docker
+make check-all     # everything CI runs
 ```
 
-Targets that run per gem take `GEMS`, so `make test GEMS=configdirector-server-sdk` runs one suite.
+Targets that run per gem take `GEMS`, so `make test GEMS=configdirector-server-sdk` runs one suite. `install`,
+`verify-lock`, `format`, `lint`, `audit` and `clean` also run on each sample, which `SAMPLES=` leaves out, and
+`make lint` runs RuboCop alone on a sample. `make samples-local` installs each sample's bundle and runs its suite,
+which proves that a change to a gem has not broken the code an application writes against it.
 
 `make lint` runs RuboCop, which checks each gem against the oldest Ruby its gemspec supports, then Steep, which
 checks the code against the RBS signatures in `sig/`. The signatures ship in the gem. A finding is fixed, not
@@ -71,9 +82,9 @@ Ruby line, `ruby:3.3` for the SDK and `ruby:3.4` for the provider, pulled again 
 newest release of that line, on a copy of this working tree.
 
 CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu, on Ruby 4.0 on macOS, and on Ruby 3.3 and 4.0 on
-Windows, the provider's suite on Ruby 3.4 and 4.0 on Ubuntu, and `make test-lowest`, the lint, build and audit on
-Ruby 4.0. Locally, `make check-all` covers your own Ruby and, through `make check-floor`, each gem's oldest Ruby
-line.
+Windows, the provider's suite on Ruby 3.4 and 4.0 on Ubuntu, the samples' suites on Ruby 3.3 and 4.0 on Ubuntu,
+and `make test-lowest`, the lint, build and audit on Ruby 4.0. Locally, `make check-all` covers your own Ruby and,
+through `make check-floor`, each gem's oldest Ruby line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
 there rather than in either of them.

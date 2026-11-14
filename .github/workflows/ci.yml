@@ -72,7 +72,7 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
 
       - run: make verify-ruby
-      - run: make verify-lock GEMS=configdirector-server-sdk
+      - run: make verify-lock GEMS=configdirector-server-sdk SAMPLES=
       - run: make test GEMS=configdirector-server-sdk
 
   provider:
@@ -92,5 +92,24 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
 
       - run: make verify-ruby
-      - run: make verify-lock GEMS=configdirector-openfeature-server-provider
+      - run: make verify-lock GEMS=configdirector-openfeature-server-provider SAMPLES=
       - run: make test GEMS=configdirector-openfeature-server-provider
+
+  samples:
+    name: Sample apps (Ruby ${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["3.3", "4.0"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+
+      - run: make verify-ruby
+      - run: make verify-lock GEMS=
+      - run: make samples-local

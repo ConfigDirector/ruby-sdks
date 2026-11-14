@@ -13,7 +13,8 @@ Each gem has its own changelog, version, and release. Pick the server SDK to use
 
 ## Sample apps
 
-Small, runnable applications will live under `samples/`, grouped by the gem they demonstrate.
+Small, runnable applications live under [`samples/`](samples/), grouped by the gem they demonstrate: for the server
+SDK, a Rails application served by Puma in cluster mode.
 
 ## Getting Help
 
