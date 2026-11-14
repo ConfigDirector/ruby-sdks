@@ -70,9 +70,10 @@ Bundler resolves those versions into a throwaway `Gemfile` and lock, so the comm
 Ruby line, `ruby:3.3` for the SDK and `ruby:3.4` for the provider, pulled again on every run so that it is the
 newest release of that line, on a copy of this working tree.
 
-CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu and on Ruby 4.0 on macOS and Windows, the provider's
-suite on Ruby 3.4 and 4.0 on Ubuntu, and `make test-lowest`, the lint, build and audit on Ruby 4.0. Locally,
-`make check-all` covers your own Ruby and, through `make check-floor`, each gem's oldest Ruby line.
+CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu, on Ruby 4.0 on macOS, and on Ruby 3.3 and 4.0 on
+Windows, the provider's suite on Ruby 3.4 and 4.0 on Ubuntu, and `make test-lowest`, the lint, build and audit on
+Ruby 4.0. Locally, `make check-all` covers your own Ruby and, through `make check-floor`, each gem's oldest Ruby
+line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
 there rather than in either of them.

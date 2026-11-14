@@ -1,0 +1,354 @@
+module ConfigDirector
+  module Internal
+    module Evaluation
+      type json_value = String | Integer | Float | bool | nil | Array[json_value] | Hash[String, json_value]
+
+      type segments = Hash[String, Segment]
+
+      type served_by = :matching_rule | :default_targeting_rule | :default_targeting_rule_after_skipped_rollout
+
+      type fall_through = :not_matched | :rollout_skipped_no_identifier
+
+      interface _Condition
+        def holds_for?: (EvaluationContext context, segments segments) -> bool
+      end
+
+      class EvaluationContext < Data
+        USER_CONTEXT_KIND: String
+
+        attr_reader identifier: String?
+        attr_reader kind: String?
+        attr_reader name: String?
+        attr_reader traits: Hash[String, json_value]
+        attr_reader app_name: String?
+        attr_reader app_version: String?
+
+        def self.new: (
+          identifier: String?,
+          kind: String?,
+          name: String?,
+          traits: Hash[String, json_value],
+          app_name: String?,
+          app_version: String?
+        ) -> instance
+
+        def effective_kind: () -> String
+      end
+
+      class AttributeCondition < Data
+        attr_reader attribute: String
+        attr_reader trait: String?
+        attr_reader operator: String
+        attr_reader target_type: String
+        attr_reader target_values: Array[String]
+
+        def self.new: (
+          attribute: String,
+          trait: String?,
+          operator: String,
+          target_type: String,
+          target_values: Array[String]
+        ) -> instance
+
+        def holds_for?: (EvaluationContext context, segments _segments) -> bool
+
+        private
+
+        def trait_of: (EvaluationContext context) -> json_value
+
+        def value_matches?: (json_value value) -> bool
+      end
+
+      class SegmentCondition < Data
+        attr_reader operator: String
+        attr_reader segment_id: String
+
+        def self.new: (operator: String, segment_id: String) -> instance
+
+        def holds_for?: (EvaluationContext context, segments segments) -> bool
+      end
+
+      class Segment < Data
+        attr_reader condition_groups: Array[Array[AttributeCondition]]
+
+        def self.new: (condition_groups: Array[Array[AttributeCondition]]) -> instance
+
+        def contains?: (EvaluationContext context) -> bool
+      end
+
+      class Share < Data
+        attr_reader id: String
+        attr_reader percentage: Float
+        attr_reader value: String?
+        attr_reader value_id: String?
+        attr_reader variation_id: String?
+
+        def self.new: (
+          id: String,
+          percentage: Float,
+          value: String?,
+          value_id: String?,
+          variation_id: String?
+        ) -> instance
+      end
+
+      class RolloutShare < Data
+        attr_reader rule_id: String
+        attr_reader share_id: String
+
+        def self.new: (rule_id: String, share_id: String) -> instance
+      end
+
+      class ServedValue < Data
+        attr_reader value: String
+        attr_reader value_id: String?
+        attr_reader variation_id: String?
+        attr_reader rollout_share: RolloutShare?
+        attr_reader served_by: served_by
+
+        def self.new: (
+          value: String,
+          value_id: String?,
+          variation_id: String?,
+          rollout_share: RolloutShare?,
+          served_by: served_by
+        ) -> instance
+      end
+
+      class Rule < Data
+        attr_reader id: String
+        attr_reader order: Integer?
+        attr_reader type: String
+        attr_reader target: String
+        attr_reader value: String?
+        attr_reader value_id: String?
+        attr_reader variation_id: String?
+        attr_reader conditions: Array[_Condition]
+        attr_reader shares: Array[Share]?
+
+        def self.new: (
+          id: String,
+          order: Integer?,
+          type: String,
+          target: String,
+          value: String?,
+          value_id: String?,
+          variation_id: String?,
+          conditions: Array[_Condition],
+          shares: Array[Share]?
+        ) -> instance
+
+        def serve: (String config_id, EvaluationContext context, segments segments) -> (ServedValue | fall_through)
+
+        private
+
+        def serve_when_every_condition_holds: (
+          String config_id,
+          EvaluationContext context,
+          segments segments
+        ) -> (ServedValue | fall_through)
+
+        def serve_value: () -> (ServedValue | fall_through)
+
+        def serve_from_rollout: (String config_id, EvaluationContext context) -> (ServedValue | fall_through)
+
+        def share_covering: (Array[Share] rollout_shares, Float assigned_percentage) -> Share?
+
+        def serve_share: (Share share, String share_value) -> ServedValue
+      end
+
+      class TargetingRules < Data
+        attr_reader default_value: String
+        attr_reader default_value_id: String?
+        attr_reader default_variation_id: String?
+        attr_reader rules: Array[Rule]
+
+        def self.new: (
+          default_value: String,
+          default_value_id: String?,
+          default_variation_id: String?,
+          rules: Array[Rule]
+        ) -> instance
+      end
+
+      module ConfigEvaluator
+        def self.evaluate: (
+          String config_id,
+          TargetingRules targeting_rules,
+          EvaluationContext context,
+          segments segments
+        ) -> ServedValue
+
+        def self.in_evaluation_order: (Array[Rule] rules) -> Array[Rule]
+
+        def self.default_targeting_rule_value: (TargetingRules targeting_rules, bool a_rollout_was_skipped) -> ServedValue
+      end
+
+      module ScalarText
+        LAST_POINT_POSITION_SPELLED_OUT: Integer
+        FIRST_POINT_POSITION_SPELLED_OUT: Integer
+
+        def self.of: (json_value value) -> String?
+
+        def self.of_float: (Float number) -> String
+
+        def self.of_positive_float: (Float number) -> String
+
+        def self.shortest_digits_and_point_position: (Float number) -> [String, Integer]
+
+        def self.exponent_form: (String digits, Integer exponent) -> String
+      end
+
+      module TextComparison
+        type operator = ^(String text, Array[String] targets) -> bool
+
+        EQUALS_THE_FIRST_TARGET: operator
+        DIFFERS_FROM_THE_FIRST_TARGET: operator
+        NEVER_MATCHES: operator
+        OPERATORS: Hash[String, operator]
+
+        def self.matches?: (String text, String operator, Array[String] targets) -> bool
+      end
+
+      module NumberComparison
+        class NumberOperator < Data
+          attr_reader holds: ^(Float number, Float target) -> bool
+          attr_reader holds_for_an_unparseable_value: bool
+
+          def self.new: (holds: ^(Float number, Float target) -> bool, holds_for_an_unparseable_value: bool) -> instance
+        end
+
+        EQUALS: NumberOperator
+        DOES_NOT_EQUAL: NumberOperator
+
+        type rounding = :overflows | :underflows | :fits
+
+        OPERATORS: Hash[String, NumberOperator]
+        DECIMAL_LITERAL: Regexp
+        ROUNDS_TO_INFINITY_FROM: Integer
+        ROUNDS_TO_ZERO_UP_TO: Rational
+        LARGEST_FLOAT_DECIMAL_EXPONENT: Integer
+        SMALLEST_FLOAT_DECIMAL_EXPONENT: Integer
+
+        def self.matches?: (json_value value, String operator, Array[String] targets) -> bool
+
+        def self.finite_number_of: (json_value value) -> Float?
+
+        def self.finite_number_in: (String text) -> Float?
+
+        def self.decimal_parts_of: (String text) -> [String, String, Integer]?
+
+        def self.rounding_of: (String significant_digits, Integer power_of_ten) -> rounding
+
+        def self.rounding_near_the_largest_float: (String significant_digits, Integer power_of_ten) -> rounding
+
+        def self.rounding_near_the_smallest_float: (String significant_digits, Integer power_of_ten) -> rounding
+
+        def self.exact_value: (String significant_digits, Integer power_of_ten) -> Numeric
+      end
+
+      module SemverComparison
+        type version = [Integer, Integer, Integer]
+
+        type operator = ^(version? version, Array[String] targets) -> bool
+
+        COERCIBLE_VERSION: Regexp
+        NEVER_MATCHES: operator
+        OPERATORS: Hash[String, operator]
+
+        def self.matches?: (String text, String operator, Array[String] targets) -> bool
+
+        def self.coerce: (String text) -> version?
+
+        def self.ordering: (version? version, String? target_text) -> Integer?
+
+        def self.equals_any?: (version? version, Array[String] targets) -> bool
+      end
+
+      module DatetimeComparison
+        ECMASCRIPT_DATE_TIME: Regexp
+        DAYS_IN_MONTH_OF_A_COMMON_YEAR: Array[Integer]
+
+        def self.matches?: (String text, String operator, Array[String] targets) -> bool
+
+        def self.milliseconds_since_epoch_of: (String text) -> Integer?
+
+        def self.possible_calendar_fields_of: (MatchData match) -> [Integer, Integer, Integer, Integer, Integer, Integer]?
+
+        def self.milliseconds_read_as_utc: (
+          [Integer, Integer, Integer, Integer, Integer, Integer] calendar_fields,
+          String? fraction
+        ) -> Integer
+
+        def self.offset_minutes_of: (String? offset) -> Integer?
+
+        def self.possible_date?: (Integer year, Integer month, Integer day) -> bool
+
+        def self.possible_time?: (Integer hour, Integer minute, Integer second) -> bool
+
+        def self.days_in_month: (Integer year, Integer month) -> Integer
+
+        def self.leap_year?: (Integer year) -> bool
+      end
+
+      module ArrayComparison
+        def self.matches?: (json_value value, String operator, Array[String] targets) -> bool
+
+        def self.contains_any?: (Array[json_value] elements, Array[String] targets) -> bool
+      end
+
+      module TraitPointer
+        INVALID_ESCAPE: Regexp
+        ESCAPE: Regexp
+        DECODED_ESCAPES: Hash[String, String]
+        ARRAY_INDEX: Regexp
+
+        def self.value_at: (String pointer, json_value traits) -> json_value
+
+        def self.member_of: (json_value container, String token) -> json_value
+
+        def self.element_of: (Array[json_value] elements, String token) -> json_value
+      end
+
+      module Rapidhash
+        LOW_64_BITS: Integer
+        SECRET: Array[Integer]
+        SHORT_MESSAGE_LENGTH: Integer
+        BLOCK_LENGTH: Integer
+        LANE_COUNT: Integer
+        REMAINDER_PAIR_SECRETS: Array[Integer]
+
+        def self.of: (String message, Integer seed) -> Integer
+
+        def self.short_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
+
+        def self.tiny_message_words: (String message, Integer length) -> [Integer, Integer]
+
+        def self.long_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
+
+        def self.blocks: (String message, Integer length, Integer seed) -> [Integer, Integer]
+
+        def self.mix_block: (String message, Integer offset, Array[Integer] lanes) -> Array[Integer]
+
+        def self.remainder_pairs: (String message, Integer offset, Integer length, Integer seed) -> Integer
+
+        def self.mix: (Integer multiplicand, Integer multiplier) -> Integer
+
+        def self.finish: (Integer first_word, Integer second_word, Integer last_block_length) -> Integer
+
+        def self.read64: (String message, Integer offset) -> Integer
+
+        def self.read32: (String message, Integer offset) -> Integer
+
+        def self.read8: (String message, Integer offset) -> Integer
+      end
+
+      module AssignedPercentage
+        SEED: Integer
+        REACHABLE_TENTHS_OF_A_PERCENT: Integer
+
+        def self.of: (String config_id, String identifier, String context_kind) -> Float
+      end
+    end
+  end
+end

@@ -2,9 +2,18 @@ AllCops:
   NewCops: enable
   SuggestExtensions: false
 
+Metrics/BlockLength:
+  AllowedMethods:
+    - describe
+
 Naming/FileName:
   Exclude:
     - lib/configdirector-server-sdk.rb
+
+Style/Documentation:
+  Exclude:
+    - lib/configdirector/internal/**/*
+    - spec/**/*
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes
