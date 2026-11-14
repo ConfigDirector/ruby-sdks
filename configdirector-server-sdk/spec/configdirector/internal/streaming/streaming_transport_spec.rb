@@ -432,7 +432,8 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
     expect(protocol_timing.seconds_to_open_a_stream).to eq(10)
   end
 
-  it "counts a connection that does not open within the time to open a stream as a failed attempt" do
+  it "counts a connection that does not open within the time to open a stream as a failed attempt",
+     unless: Gem.win_platform? do
     open_transport(
       url: "http://10.255.255.1:81", timing: timing_without_pauses.with(seconds_to_open_a_stream: 0.2)
     )

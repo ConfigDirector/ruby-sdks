@@ -76,6 +76,11 @@ The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.
 local port that holds each request until the example answers it, opens an event stream on it or drops it, and
 is stopped when the example ends. No spec stubs `net/http`.
 
+One example of the streaming transport does not run on Windows: the one that connects to an address that never
+answers. Ruby on Windows calls Winsock's blocking `connect` (`rb_w32_connect` in Ruby's `win32/win32.c`), which
+neither `Net::HTTP#open_timeout` nor `Thread#raise` can end, so there the attempt lasts until Windows gives up on
+it, and a `close` during it returns after its 5 seconds while the streaming thread ends when the attempt does.
+
 `make verify-ruby` prints the version of the Ruby that runs it and fails when that release lacks the fixes above;
 every CI job runs it first. `make verify-lock` fails when a `Gemfile.lock` no longer matches its `Gemfile` and
 gemspec. `make build` builds each gem into `dist/` with `gem build --strict`, which fails on any warning about the
