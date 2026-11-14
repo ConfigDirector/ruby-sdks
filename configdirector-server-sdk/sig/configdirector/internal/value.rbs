@@ -1,0 +1,58 @@
+module ConfigDirector
+  module Internal
+    module Value
+      type in_code_default_value_kind = :boolean | :string | :integer | :float | :json_object | :json_array
+
+      class InCodeDefaultValue < Data
+        attr_reader value: config_value
+        attr_reader kind: in_code_default_value_kind
+
+        def self.new: (value: config_value, kind: in_code_default_value_kind) -> instance
+
+        def self.from: (untyped default_value) -> InCodeDefaultValue
+
+        def self.kind_of: (untyped default_value) -> in_code_default_value_kind?
+      end
+
+      class TypedValue < Data
+        attr_reader value: config_value
+
+        def self.new: (value: config_value) -> instance
+      end
+
+      module ServedText
+        CONFIG_TYPES_NOT_READABLE_AS_A_STRING: Array[String]
+        WHOLE_NUMBER_DIGITS: Regexp
+        TYPED_BY_IN_CODE_DEFAULT_VALUE_KIND: Hash[Symbol, ^(String served_text, String config_type) -> (TypedValue | String)]
+
+        def self.typed_as: (
+          in_code_default_value_kind in_code_default_value_kind,
+          String? served_text,
+          String config_type
+        ) -> (TypedValue | String)
+
+        def self.boolean_in: (String served_text) -> (TypedValue | String)
+
+        def self.string_of: (String served_text, String config_type) -> (TypedValue | String)
+
+        def self.whole_number_in: (String served_text) -> (TypedValue | String)
+
+        def self.finite_number_in: (String served_text) -> (TypedValue | String)
+
+        def self.json_in: (String served_text, Class json_class) -> (TypedValue | String)
+      end
+    end
+
+    module Logging
+      module DefaultLogger
+        LINE_PREFIX: String
+        LINE_FORMAT: ^(String severity, Time time, untyped program_name, untyped message) -> String
+        LOGGER_LEVELS: Range[Integer]
+
+        def self.writing_from: (untyped log_level) -> Logger
+
+        def self.invalid: (untyped log_level) -> ConfigDirectorValidationError
+      end
+    end
+  end
+end

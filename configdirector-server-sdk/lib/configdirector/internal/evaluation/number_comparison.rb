@@ -111,7 +111,7 @@ module ConfigDirector
         private_constant :NumberOperator, :EQUALS, :DOES_NOT_EQUAL, :OPERATORS, :DECIMAL_LITERAL,
                          :ROUNDS_TO_INFINITY_FROM, :ROUNDS_TO_ZERO_UP_TO, :LARGEST_FLOAT_DECIMAL_EXPONENT,
                          :SMALLEST_FLOAT_DECIMAL_EXPONENT
-        private_class_method :finite_number_of, :finite_number_in, :decimal_parts_of, :rounding_of,
+        private_class_method :finite_number_of, :decimal_parts_of, :rounding_of,
                              :rounding_near_the_largest_float, :rounding_near_the_smallest_float, :exact_value
       end
     end

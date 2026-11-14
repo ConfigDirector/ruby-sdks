@@ -6,6 +6,9 @@ Metrics/BlockLength:
   AllowedMethods:
     - describe
 
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
 Naming/FileName:
   Exclude:
     - lib/configdirector-server-sdk.rb

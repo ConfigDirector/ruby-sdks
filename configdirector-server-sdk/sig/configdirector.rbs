@@ -1,3 +1,220 @@
 module ConfigDirector
   VERSION: String
+
+  type config_value = bool | String | Integer | Float | Hash[untyped, untyped] | Array[untyped]
+
+  type seconds = Integer | Float
+
+  interface _Logger
+    def debug: (String message) -> void
+
+    def info: (String message) -> void
+
+    def warn: (String message) -> void
+
+    def error: (String message) -> void
+  end
+
+  interface _LogLevelCheck
+    def call: () -> untyped
+  end
+
+  def self.create_client: (
+    ?String? server_sdk_key,
+    ?metadata: Metadata?,
+    ?connection: ConnectionOptions?,
+    ?logger: (_Logger & Object)?,
+    ?log_level: (Integer | Symbol | String)?,
+    ?telemetry: TelemetryOptions?,
+    ?hooks: ClientHooks?
+  ) -> ConfigDirectorClient
+
+  def self.client_on: (
+    Internal::Connection::_Connection internal_connection,
+    Metadata metadata,
+    ConnectionOptions connection_options,
+    _Logger & Object logger
+  ) -> ConfigDirectorClient
+
+  def self.warn_of_a_polling_interval_below_the_minimum: (ConnectionOptions connection, _Logger logger) -> void
+
+  class ConfigDirectorError < StandardError
+  end
+
+  class ConfigDirectorValidationError < ConfigDirectorError
+  end
+
+  class Metadata
+    include Internal::ComparedByValue
+
+    attr_reader app_name: String?
+    attr_reader app_version: String?
+
+    def initialize: (?app_name: String?, ?app_version: String?) -> void
+  end
+
+  class ConnectionOptions
+    include Internal::ComparedByValue
+
+    attr_reader mode: String
+    attr_reader polling_interval: seconds
+    attr_reader timeout: seconds
+    attr_reader url: String
+    attr_reader file: String?
+    attr_reader values: Hash[String, untyped]?
+
+    def initialize: (
+      ?mode: String,
+      ?polling_interval: seconds,
+      ?timeout: seconds,
+      ?url: String,
+      ?file: String?,
+      ?values: Hash[String, untyped]?
+    ) -> void
+  end
+
+  class TelemetryOptions
+    include Internal::ComparedByValue
+
+    attr_reader event_queue_limit: Integer
+    attr_reader flush_interval: seconds
+
+    def initialize: (?event_queue_limit: Integer, ?flush_interval: seconds) -> void
+  end
+
+  class ClientHooks
+    include Internal::ComparedByValue
+
+    def initialize: () -> void
+  end
+
+  class Context
+    include Internal::ComparedByValue
+
+    attr_reader id: String?
+    attr_reader kind: String?
+    attr_reader name: String?
+    attr_reader traits: Hash[String, untyped]?
+
+    @anonymous: bool
+
+    def initialize: (
+      ?id: (String | Integer)?,
+      ?kind: String?,
+      ?name: String?,
+      ?traits: Hash[untyped, untyped]?,
+      ?anonymous: bool
+    ) -> void
+
+    def anonymous?: () -> bool
+  end
+
+  class Variation
+    include Internal::ComparedByValue
+
+    attr_reader id: String
+    attr_reader name: String?
+
+    def initialize: (id: String, ?name: String?) -> void
+  end
+
+  class ConfigState
+    include Internal::ComparedByValue
+
+    attr_reader id: String
+    attr_reader key: String
+    attr_reader type: String
+    attr_reader value: String?
+    attr_reader value_id: String?
+    attr_reader variation: Variation?
+    attr_reader rule_id: String?
+    attr_reader share_id: String?
+
+    def initialize: (
+      id: String,
+      key: String,
+      type: String,
+      value: String?,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?rule_id: String?,
+      ?share_id: String?
+    ) -> void
+  end
+
+  class ConfigEvaluation
+    include Internal::ComparedByValue
+
+    attr_reader key: String
+    attr_reader value: config_value
+    attr_reader value_id: String?
+    attr_reader variation: Variation?
+    attr_reader reason: String
+    attr_reader context: Context?
+
+    @default_value: bool
+
+    def initialize: (
+      key: String,
+      value: config_value,
+      default_value: bool,
+      reason: String,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?context: Context?
+    ) -> void
+
+    def default_value?: () -> bool
+  end
+
+  class ConfigDirectorClient
+    LOG_PREFIX: String
+
+    @connection: Internal::Connection::_Connection
+    @metadata: Metadata
+    @timeout: Float
+    @logger: _Logger
+    @logs_at_debug_level: _LogLevelCheck
+    @connection_lifecycle: Thread::Mutex
+    @connection_opened: bool
+    @serving_state: Internal::Client::ServingState
+    @context_admission: Internal::Client::ContextAdmission
+
+    def initialize: (
+      connection: Internal::Connection::_Connection,
+      metadata: Metadata,
+      timeout: Float,
+      logger: _Logger & Object
+    ) -> void
+
+    def init: () -> void
+
+    def ready?: () -> bool
+
+    def get_value: (String config_key, config_value default_value, ?Context? context) -> config_value
+
+    def evaluate: (String config_key, config_value default_value, ?Context? context) -> ConfigEvaluation
+
+    def get_all_configs: (?context: Context?, ?config_keys: Array[String]?) -> Hash[String, ConfigState]
+
+    def close: () -> void
+
+    def closed?: () -> bool
+
+    private
+
+    def raise_if_closed: () -> void
+
+    def open_the_connection_once: () -> void
+
+    def warn_that_no_values_arrived_in_time: () -> void
+
+    def take_in: (Internal::Connection::ServerSdkPayload payload) -> void
+
+    def config_read_of: (untyped config_key, untyped default_value, untyped context) -> Internal::Client::ConfigRead
+
+    def reject_config_keys_that_are_not_an_array: (untyped config_keys) -> void
+
+    def log_at_debug_level: () { () -> String } -> void
+  end
 end

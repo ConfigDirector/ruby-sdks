@@ -1,0 +1,76 @@
+module ConfigDirector
+  module Internal
+    module Connection
+      interface _Connection
+        def open: () { (ServerSdkPayload payload) -> void } -> void
+
+        def close: () -> void
+      end
+
+      class ServerSdkPayload < Data
+        attr_reader configs: Hash[String, ConfigDefinition]
+        attr_reader segments: Evaluation::segments
+
+        def self.new: (configs: Hash[String, ConfigDefinition], segments: Evaluation::segments) -> instance
+      end
+
+      class ConfigDefinition < Data
+        attr_reader id: String
+        attr_reader key: String
+        attr_reader type: String
+        attr_reader targeting_rules: Evaluation::TargetingRules
+        attr_reader variations: Array[Variation]
+
+        def self.new: (
+          id: String,
+          key: String,
+          type: String,
+          targeting_rules: Evaluation::TargetingRules,
+          variations: Array[Variation]
+        ) -> instance
+
+        def state_serving: (Evaluation::ServedValue served) -> ConfigState
+      end
+
+      class HardCodedConnection
+        include _Connection
+
+        CONFIG_DEFINITIONS: Array[ConfigDefinition]
+
+        def self.serving: (
+          String default_targeting_rule_value,
+          String? value_id,
+          ?String? variation_id,
+          ?rules: Array[Evaluation::Rule]
+        ) -> Evaluation::TargetingRules
+
+        def self.value_when: (
+          Evaluation::_Condition condition,
+          String value,
+          rule_id: String,
+          value_id: String
+        ) -> Evaluation::Rule
+
+        def self.rollout_to_everyone: (
+          String value,
+          rule_id: String,
+          share_id: String,
+          value_id: String,
+          variation_id: String
+        ) -> Evaluation::Rule
+      end
+
+      class PollingInterval < Data
+        MINIMUM_SECONDS: Integer
+
+        attr_reader configured_seconds: seconds
+
+        def self.new: (configured_seconds: seconds) -> instance
+
+        def raised_to_the_minimum?: () -> bool
+
+        def seconds: () -> seconds
+      end
+    end
+  end
+end
