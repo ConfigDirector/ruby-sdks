@@ -68,6 +68,14 @@ checks the code against the RBS signatures in `sig/`. The signatures ship in the
 ignored. `make format` applies RuboCop's safe corrections. RSpec fails a run on a Ruby warning, on an RSpec
 warning or deprecation, and on an example left focused, skipped or pending.
 
+`sig_missing_from_rbs/` in the SDK holds signatures of Ruby's own classes that the released `rbs` gem lacks: the
+block of `Thread.handle_interrupt`, which `rbs` has on its main branch and 4.2.0 does not. Steep reads that
+directory and the gem does not ship it. Delete a file there once an `rbs` release has its signature.
+
+The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.rb`: a real HTTP server on a free
+local port that holds each request until the example answers it, opens an event stream on it or drops it, and
+is stopped when the example ends. No spec stubs `net/http`.
+
 `make verify-ruby` prints the version of the Ruby that runs it and fails when that release lacks the fixes above;
 every CI job runs it first. `make verify-lock` fails when a `Gemfile.lock` no longer matches its `Gemfile` and
 gemspec. `make build` builds each gem into `dist/` with `gem build --strict`, which fails on any warning about the

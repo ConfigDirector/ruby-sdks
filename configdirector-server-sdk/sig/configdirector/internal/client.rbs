@@ -188,6 +188,8 @@ module ConfigDirector
 
         def deliver_config_evaluated: (ConfigEvaluation evaluation) -> void
 
+        def deliver_connection_error: (ConfigDirectorConnectionError error) -> void
+
         private
 
         def reject_an_unknown_event_name: (untyped event_name) -> void
@@ -229,11 +231,38 @@ module ConfigDirector
         def deliver_on: (Array[String] config_keys) { (ConfigRead config_read) -> config_value } -> void
       end
 
+      class ConnectionIntake
+        @metadata: Metadata
+        @serving_state: ServingState
+        @event_handlers: EventHandlers
+        @watches: Watches
+        @config_reader: ConfigReader
+        @log: Logging::ClientLog
+
+        def initialize: (
+          metadata: Metadata,
+          serving_state: ServingState,
+          event_handlers: EventHandlers,
+          watches: Watches,
+          config_reader: ConfigReader,
+          log: Logging::ClientLog
+        ) -> void
+
+        def take_in: (Connection::ServerSdkPayload payload) -> void
+
+        def take_in_unrecoverable_error: (ConfigDirectorConnectionError connection_error) -> void
+
+        private
+
+        def deliver_the_update: (ConfigsUpdatedEvent update) -> void
+      end
+
       class ServingState
         @lock: Thread::Mutex
-        @values_arrived_or_client_closed: Thread::ConditionVariable
+        @first_values_no_longer_awaited: Thread::ConditionVariable
         @served_configs: ServedConfigs?
         @closed: bool
+        @connection_failed_unrecoverably: bool
 
         def initialize: () -> void
 
@@ -244,6 +273,8 @@ module ConfigDirector
         def serve: (ServedConfigs served_configs) -> [arrival_of_values, ServedConfigs?]
 
         def close: () -> void
+
+        def expect_no_values_from_the_connection: () -> void
 
         def timed_out_waiting_for_the_first_values?: (Float timeout_seconds) -> bool
 

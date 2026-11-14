@@ -1,0 +1,133 @@
+# frozen_string_literal: true
+
+require "json"
+require "socket"
+
+class ScriptedSdkServer
+  STREAM_PATH = "/server/sse/v1"
+  HEARTBEAT_PATH = "/server/heartbeat/v1"
+
+  class HeldRequest
+    attr_reader :path, :headers, :body
+
+    def initialize(socket, path, headers, body)
+      @socket = socket
+      @path = path
+      @headers = headers
+      @body = body
+    end
+
+    def json
+      JSON.parse(body)
+    end
+
+    def answer(status:, headers: {})
+      header_lines = headers.merge("Content-Length" => "0", "Connection" => "close")
+                            .map { |name, value| "#{name}: #{value}\r\n" }
+      @socket.write("HTTP/1.1 #{status} Scripted\r\n#{header_lines.join}\r\n")
+      @socket.close
+    end
+
+    def open_event_stream
+      @socket.write("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n")
+    end
+
+    def send_event(data, id: nil)
+      send_stream_text("#{"id: #{id}\n" unless id.nil?}data: #{data}\n\n")
+    end
+
+    def send_stream_text(text)
+      @socket.write("#{text.bytesize.to_s(16)}\r\n#{text}\r\n")
+    end
+
+    def end_event_stream
+      @socket.write("0\r\n\r\n")
+      @socket.close
+    end
+
+    def drop
+      @socket.close
+    end
+  end
+
+  def initialize
+    @listener = TCPServer.new("127.0.0.1", 0)
+    @port = @listener.addr[1]
+    @lock = Mutex.new
+    @held_requests_by_path = {}
+    @sockets = []
+    @request_readers = []
+    @acceptor = Thread.new { accept_connections }
+    @acceptor.name = "scripted-sdk-server"
+  end
+
+  def url
+    "http://127.0.0.1:#{@port}"
+  end
+
+  def next_request_to(path, within: 5)
+    request = request_to(path, within: within)
+    raise "The scripted SDK server received no request to #{path} within #{within} seconds" if request.nil?
+
+    request
+  end
+
+  def request_to(path, within:)
+    held_requests_to(path).pop(timeout: within)
+  end
+
+  def next_stream_request(within: 5)
+    next_request_to(STREAM_PATH, within: within)
+  end
+
+  def next_heartbeat_request(within: 5)
+    next_request_to(HEARTBEAT_PATH, within: within)
+  end
+
+  def receives_a_request_to?(path, within:)
+    !request_to(path, within: within).nil?
+  end
+
+  def stop
+    @listener.close
+    @acceptor.join
+    sockets, request_readers = @lock.synchronize { [@sockets.dup, @request_readers.dup] }
+    sockets.each { |socket| socket.close unless socket.closed? }
+    request_readers.each(&:join)
+  end
+
+  private
+
+  def held_requests_to(path)
+    @lock.synchronize { @held_requests_by_path[path] ||= Queue.new }
+  end
+
+  def accept_connections
+    loop do
+      socket = @listener.accept
+      @lock.synchronize do
+        @sockets << socket
+        @request_readers << Thread.new { hold_the_request_on(socket) }
+      end
+    end
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  def hold_the_request_on(socket)
+    _http_method, path, _http_version = socket.gets("\r\n").to_s.split
+    headers = header_lines_on(socket).to_h { |line| line.split(": ", 2) }.transform_keys(&:downcase)
+    body = socket.read(Integer(headers.fetch("content-length", "0")))
+    held_requests_to(path) << HeldRequest.new(socket, path, headers, body) unless path.nil?
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  def header_lines_on(socket)
+    lines = []
+    while (line = socket.gets("\r\n").to_s.chomp) != ""
+      lines << line
+    end
+    lines
+  end
+end

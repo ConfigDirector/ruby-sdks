@@ -4,7 +4,7 @@ module ConfigDirector
   module Internal
     module Connection
       class HardCodedConnection
-        def open
+        def open(**)
           yield ServerSdkPayload.new(configs: CONFIG_DEFINITIONS.to_h { |definition| [definition.key, definition] },
                                      segments: {})
         end

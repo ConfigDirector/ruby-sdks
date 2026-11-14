@@ -1,0 +1,4 @@
+class Thread
+  def self.handle_interrupt: [T] (Hash[Class, :immediate | :on_blocking | :never] hash) { (nil) -> T } -> T
+                           | ...
+end

@@ -240,6 +240,70 @@ RSpec.describe ConfigDirector::ConfigDirectorClient do
     expect(logger.messages_at(:warn)).to be_empty
   end
 
+  it "calls the connection_error handlers with the error its connection could not recover from" do
+    connection = ScriptedConnection.new
+    events_of_the_hook = []
+    events_of_the_handler = []
+    hooks = ConfigDirector::ClientHooks.new(connection_error: ->(event) { events_of_the_hook << event })
+    client = client_on(connection, timeout: 0.05, hooks: hooks)
+    client.on(:connection_error) { |event| events_of_the_handler << event }
+    client.init
+    error = ConfigDirector::ConfigDirectorConnectionError.new("Connection failed with status: 401.", status: 401)
+
+    connection.fail_unrecoverably(error)
+
+    expect(events_of_the_hook).to eq([ConfigDirector::ConnectionErrorEvent.new(error: error)])
+    expect(events_of_the_handler).to eq([ConfigDirector::ConnectionErrorEvent.new(error: error)])
+    expect(events_of_the_handler.first.error.status).to eq(401)
+  end
+
+  it "ends a pending init without a warning when its connection fails unrecoverably" do
+    connection = ScriptedConnection.new
+    client = client_on(connection, timeout: 30.0)
+    pending_init = Thread.new { seconds_taken { client.init } }
+    connection.wait_until_opened
+
+    connection.fail_unrecoverably(
+      ConfigDirector::ConfigDirectorConnectionError.new("Connection failed with status: 401.", status: 401)
+    )
+
+    expect(pending_init.value).to be < 10
+    expect(client.ready?).to be(false)
+    expect(logger.messages_at(:warn) + logger.messages_at(:error)).to be_empty
+  end
+
+  it "returns from a later init at once, without a warning or a second connection, after an unrecoverable error" do
+    connection = ScriptedConnection.new
+    client = client_on(connection, timeout: 30.0)
+    failure = Thread.new do
+      connection.wait_until_opened
+      connection.fail_unrecoverably(
+        ConfigDirector::ConfigDirectorConnectionError.new("Connection failed with status: 401.", status: 401)
+      )
+    end
+    client.init
+    failure.join
+
+    seconds = seconds_taken { client.init }
+
+    expect(seconds).to be < 10
+    expect(connection.open_count).to eq(1)
+    expect(logger.messages_at(:warn)).to be_empty
+  end
+
+  it "keeps serving the values it has after its connection fails unrecoverably" do
+    connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("42")])
+    client = client_on(connection)
+    client.init
+
+    connection.fail_unrecoverably(
+      ConfigDirector::ConfigDirectorConnectionError.new("Connection failed with status: 401.", status: 401)
+    )
+
+    expect(client.ready?).to be(true)
+    expect(client.get_value("integer-config", 10)).to eql(42)
+  end
+
   it "delivers the next payload to a watch registered after init" do
     connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("1")])
     client = client_on(connection)

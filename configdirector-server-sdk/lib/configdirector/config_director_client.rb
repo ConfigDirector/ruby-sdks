@@ -218,7 +218,12 @@ module ConfigDirector
       return if @connection_opened
 
       @connection_opened = true
-      @connection.open { |payload| take_in(payload) }
+      intake = Internal::Client::ConnectionIntake.new(
+        metadata: @metadata, serving_state: @serving_state, event_handlers: @event_handlers, watches: @watches,
+        config_reader: @config_reader, log: @log
+      )
+      report_unrecoverable_error = ->(connection_error) { intake.take_in_unrecoverable_error(connection_error) }
+      @connection.open(report_unrecoverable_error: report_unrecoverable_error) { |payload| intake.take_in(payload) }
     end
 
     def warn_that_no_values_arrived_in_time
@@ -226,27 +231,6 @@ module ConfigDirector
         "Timed out waiting for initialization after #{format("%g", @timeout)} seconds. " \
         "Configs return the in-code default value until values arrive."
       )
-    end
-
-    def take_in(payload)
-      served_configs = Internal::Client::ServedConfigs.new(payload: payload, metadata: @metadata)
-      arrival, replaced_configs = @serving_state.serve(served_configs)
-
-      case arrival
-      when :after_close then nil
-      when :newer_values then deliver_the_update(served_configs.update_since(replaced_configs))
-      when :first_values
-        deliver_the_update(served_configs.update_since(replaced_configs))
-        @event_handlers.deliver_client_ready
-        @log.debug { "Received initial payload from the server, client is ready" }
-      end
-    end
-
-    def deliver_the_update(update)
-      @event_handlers.deliver_configs_updated(update)
-      @watches.deliver_on(update.keys + update.removed_keys) do |config_read|
-        @config_reader.read(config_read).value
-      end
     end
   end
 end

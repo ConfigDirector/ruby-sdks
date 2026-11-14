@@ -61,6 +61,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `logger:` is given.
 - `ConfigDirectorError` is the base class of every error the SDK raises, and `ConfigDirectorValidationError`
   extends it.
+- `ConfigDirectorConnectionError` extends `ConfigDirectorError` and describes a failure to get values from
+  ConfigDirector. Its `status` is the HTTP status ConfigDirector answered with, or `nil` when there was no
+  answer, and it is built as `ConfigDirectorConnectionError.new(message, status: 401)`. It is the `error` of the
+  `ConnectionErrorEvent` a `connection_error` handler receives.
 - `on(event_name, handler)` registers a handler for one of four events, `:client_ready`, `:configs_updated`,
   `:config_evaluated` and `:connection_error`, and returns a `Subscription`. The handler is a block or any object
   that responds to `call`, such as a lambda or `method(:name)`, and a handler registered twice runs twice. Any

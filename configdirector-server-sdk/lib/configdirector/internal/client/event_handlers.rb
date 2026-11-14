@@ -61,6 +61,10 @@ module ConfigDirector
           deliver(:config_evaluated, ConfigEvaluatedEvent.new(evaluation: evaluation))
         end
 
+        def deliver_connection_error(error)
+          deliver(:connection_error, ConnectionErrorEvent.new(error: error))
+        end
+
         private
 
         def reject_an_unknown_event_name(event_name)

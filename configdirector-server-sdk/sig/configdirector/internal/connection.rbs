@@ -1,8 +1,10 @@
 module ConfigDirector
   module Internal
     module Connection
-      interface _Connection
-        def open: () { (ServerSdkPayload payload) -> void } -> void
+      interface _Connection[Delivery]
+        def open: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (Delivery delivery) -> void } -> void
 
         def close: () -> void
       end
@@ -33,7 +35,9 @@ module ConfigDirector
       end
 
       class HardCodedConnection
-        include _Connection
+        def open: (**untyped) { (ServerSdkPayload payload) -> void } -> void
+
+        def close: () -> void
 
         CONFIG_DEFINITIONS: Array[ConfigDefinition]
 

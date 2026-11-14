@@ -6,9 +6,10 @@ module ConfigDirector
       class ServingState
         def initialize
           @lock = Mutex.new
-          @values_arrived_or_client_closed = ConditionVariable.new
+          @first_values_no_longer_awaited = ConditionVariable.new
           @served_configs = nil
           @closed = false
+          @connection_failed_unrecoverably = false
         end
 
         def served_configs
@@ -25,7 +26,7 @@ module ConfigDirector
             replaced_configs = @served_configs
             unless arrival == :after_close
               @served_configs = served_configs
-              @values_arrived_or_client_closed.broadcast
+              @first_values_no_longer_awaited.broadcast
             end
             [arrival, replaced_configs]
           end
@@ -35,7 +36,14 @@ module ConfigDirector
           @lock.synchronize do
             @closed = true
             @served_configs = nil
-            @values_arrived_or_client_closed.broadcast
+            @first_values_no_longer_awaited.broadcast
+          end
+        end
+
+        def expect_no_values_from_the_connection
+          @lock.synchronize do
+            @connection_failed_unrecoverably = true
+            @first_values_no_longer_awaited.broadcast
           end
         end
 
@@ -43,12 +51,12 @@ module ConfigDirector
           @lock.synchronize do
             give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout_seconds
             loop do
-              return false if @closed || !@served_configs.nil?
+              return false if @closed || !@served_configs.nil? || @connection_failed_unrecoverably
 
               remaining_seconds = give_up_at - Process.clock_gettime(Process::CLOCK_MONOTONIC)
               return true unless remaining_seconds.positive?
 
-              @values_arrived_or_client_closed.wait(@lock, remaining_seconds)
+              @first_values_no_longer_awaited.wait(@lock, remaining_seconds)
             end
           end
         end

@@ -1,0 +1,233 @@
+module ConfigDirector
+  module Internal
+    class StoppableThread
+      class Stopped < Exception
+      end
+
+      @thread: Thread
+
+      def self.start: (String name) { () -> void } -> StoppableThread
+
+      def self.stoppable: [T] () { () -> T } -> T
+
+      def self.unstoppable: [T] () { () -> T } -> T
+
+      def self.stop_here_if_asked_to: () -> void
+
+      def initialize: (Thread thread) -> void
+
+      def stop: () -> void
+
+      def join_within: (seconds seconds) -> void
+    end
+
+    module Streaming
+      class StreamTiming < Data
+        attr_reader seconds_between_heartbeats: seconds
+        attr_reader seconds_of_silence_of_a_dropped_stream: seconds
+        attr_reader seconds_to_open_a_stream: seconds
+        attr_reader pause_before_reconnecting: ^(seconds seconds) -> void
+        attr_reader random_fraction: ^() -> Float
+
+        def self.new: (
+          seconds_between_heartbeats: seconds,
+          seconds_of_silence_of_a_dropped_stream: seconds,
+          seconds_to_open_a_stream: seconds,
+          pause_before_reconnecting: ^(seconds seconds) -> void,
+          random_fraction: ^() -> Float
+        ) -> instance
+
+        def self.of_the_protocol: () -> StreamTiming
+      end
+
+      class StreamEndpoint
+        SDK_NAME: String
+
+        @stream_uri: URI::Generic
+        @heartbeat_uri: URI::Generic
+        @server_sdk_key: String
+        @meta_context: Hash[Symbol, String]
+
+        def initialize: (url: String, server_sdk_key: String, metadata: Metadata) -> void
+
+        def http_session: (StreamTiming timing) -> Net::HTTP
+
+        def stream_request: (session_id: String, last_event_id: String) -> Net::HTTP::Post
+
+        def heartbeat_request: (session_id: String) -> Net::HTTP::Post
+
+        private
+
+        def json_post_to: (URI::Generic uri, **untyped body) -> Net::HTTP::Post
+      end
+
+      module RetryAfterHeader
+        ASCII_DIGITS: Regexp
+
+        def self.seconds_to_wait: (String? header_value, Time now) -> seconds?
+      end
+
+      module ReconnectionDelay
+        MAXIMUM_BACKOFF_EXPONENT: Integer
+        SHORTEST_WAIT_THE_SERVER_CAN_ASK_FOR_SECONDS: Integer
+        LONGEST_WAIT_THE_SERVER_CAN_ASK_FOR_SECONDS: Integer
+
+        def self.seconds_before_attempt: (
+          Integer attempt,
+          seconds_the_server_asked_to_wait: seconds?,
+          random_fraction: Float
+        ) -> seconds
+      end
+
+      type stream_end_kind = :unreachable
+                           | :refused
+                           | :throttled
+                           | :dropped
+                           | :refused_unrecoverably
+                           | :ended_without_content
+
+      class StreamEnd < Data
+        WHAT_FOLLOWS_BY_KIND: Hash[Symbol, Symbol]
+        SUCCESS_STATUSES: Range[Integer]
+        NO_CONTENT_STATUS: Integer
+        TOO_MANY_REQUESTS_STATUS: Integer
+        CLIENT_ERROR_STATUSES: Range[Integer]
+        MILLISECONDS_PER_SECOND: Float
+
+        attr_reader kind: stream_end_kind
+        attr_reader cause: String
+        attr_reader status: Integer?
+        attr_reader seconds_the_server_asked_to_wait: seconds?
+        attr_reader last_event_id: String
+
+        def self.new: (
+          kind: stream_end_kind,
+          cause: String,
+          status: Integer?,
+          seconds_the_server_asked_to_wait: seconds?,
+          last_event_id: String
+        ) -> instance
+
+        def self.stream_opened_by?: (Integer status) -> bool
+
+        def self.unreachable: (String cause, last_event_id: String) -> StreamEnd
+
+        def self.dropped: (String cause, milliseconds_named_by_the_stream: Integer?, last_event_id: String) -> StreamEnd
+
+        def self.answered_without_a_stream: (
+          Integer status,
+          seconds_named_by_retry_after: seconds?,
+          last_event_id: String
+        ) -> StreamEnd
+
+        def self.without_a_stream: (
+          stream_end_kind kind,
+          Integer status,
+          String last_event_id,
+          ?seconds? seconds_the_server_asked_to_wait
+        ) -> StreamEnd
+
+        def what_follows: () -> Symbol
+      end
+
+      class StreamConnection
+        @endpoint: StreamEndpoint
+        @timing: StreamTiming
+        @last_event_id_sent: String
+        @parser: ServerSentEvents::EventStreamParser
+        @answer: Net::HTTPResponse?
+
+        attr_reader session_id: String
+
+        def initialize: (endpoint: StreamEndpoint, timing: StreamTiming, last_event_id: String) { (String event_data) -> void } -> void
+
+        def stream_until_it_ends: () { () -> void } -> StreamEnd
+
+        private
+
+        def request_the_stream: (^() -> void stream_opened) -> void
+
+        def read_the_stream_in: (Net::HTTPResponse response, ^() -> void stream_opened) -> void
+
+        def stream_end_caused_by: (String cause) -> StreamEnd
+
+        def dropped_stream_end_caused_by: (String cause) -> StreamEnd
+
+        def status_of: (Net::HTTPResponse answer) -> Integer
+      end
+
+      class Heartbeats
+        @endpoint: StreamEndpoint
+        @timing: StreamTiming
+        @log: Logging::ClientLog
+        @lock: Thread::Mutex
+        @session_id_of_the_open_stream: String?
+
+        def initialize: (endpoint: StreamEndpoint, timing: StreamTiming, log: Logging::ClientLog) -> void
+
+        def stream_opened: (String session_id) -> void
+
+        def stream_ended: () -> void
+
+        def send_on_every_interval: () -> bot
+
+        private
+
+        def send_for: (String session_id) -> void
+
+        def answer_to_a_heartbeat_of: (String session_id) -> Net::HTTPResponse
+      end
+
+      class ReconnectingStream
+        ATTEMPTS_LOGGED_AT_INFO: Integer
+
+        @endpoint: StreamEndpoint
+        @timing: StreamTiming
+        @heartbeats: Heartbeats
+        @log: Logging::ClientLog
+        @attempt: Integer
+        @last_event_id: String
+
+        def initialize: (
+          endpoint: StreamEndpoint,
+          timing: StreamTiming,
+          heartbeats: Heartbeats,
+          log: Logging::ClientLog
+        ) -> void
+
+        def keep_open: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(String event_data) -> void deliver_event_data
+        ) -> void
+
+        private
+
+        def stream_until_it_ends: (^(String event_data) -> void deliver_event_data) -> StreamEnd
+
+        def take_note_of_the_open_stream_of: (StreamConnection connection) -> void
+
+        def deliver: (String event_data, ^(String event_data) -> void deliver_event_data) -> void
+
+        def stop_for_good: (
+          Integer? status,
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error
+        ) -> void
+
+        def pause_before_attempt: (Integer attempt, StreamEnd stream_end) -> void
+      end
+
+      class StreamingTransport
+        include Connection::_Connection[String]
+
+        SECONDS_CLOSE_WAITS_FOR_THE_THREADS: Integer
+
+        @heartbeats: Heartbeats
+        @stream: ReconnectingStream
+        @lock: Thread::Mutex
+        @threads: Array[StoppableThread]
+
+        def initialize: (endpoint: StreamEndpoint, logger: _Logger & Object, ?timing: StreamTiming) -> void
+      end
+    end
+  end
+end

@@ -13,8 +13,9 @@ class ScriptedConnection
     @close_count = 0
   end
 
-  def open(&deliver_payload)
+  def open(report_unrecoverable_error:, &deliver_payload)
     @open_count += 1
+    @report_unrecoverable_error = report_unrecoverable_error
     @deliver_payload = deliver_payload
     @opening << true
     @opening_released.pop if @opening_held
@@ -40,5 +41,9 @@ class ScriptedConnection
 
   def deliver(payload)
     @deliver_payload.call(payload)
+  end
+
+  def fail_unrecoverably(error)
+    @report_unrecoverable_error.call(error)
   end
 end

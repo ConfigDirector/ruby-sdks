@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 target :lib do
-  signature "sig"
-  library "json", "logger", "monitor", "uri"
+  signature "sig", "sig_missing_from_rbs"
+  library "json", "logger", "monitor", "net-http", "securerandom", "time", "uri"
   check "lib"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end

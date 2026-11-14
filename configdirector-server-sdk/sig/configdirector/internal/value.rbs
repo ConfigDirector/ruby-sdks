@@ -55,14 +55,15 @@ module ConfigDirector
       end
 
       class ClientLog
-        LINE_PREFIX: String
-
         @logger: _Logger
+        @line_prefix: String
         @writes_debug_lines: _LogLevelCheck
 
-        def initialize: (_Logger & Object logger) -> void
+        def initialize: (_Logger & Object logger, ?component: String) -> void
 
         def debug: () { () -> String } -> void
+
+        def info: (String line) -> void
 
         def warn: (String line) -> void
 
