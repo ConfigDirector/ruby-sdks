@@ -1,24 +1,23 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module ConfigDirector
   # The ConfigDirector SDK client. Create one with {ConfigDirector.create_client}, call {#init} when your
   # application starts and {#close} when it shuts down. A client can be shared between threads.
   class ConfigDirectorClient
-    LOG_PREFIX = "[ConfigDirectorClient]"
-
-    private_constant :LOG_PREFIX
-
     # @api private
-    def initialize(connection:, metadata:, timeout:, logger:)
+    def initialize(connection:, metadata:, timeout:, logger:, hooks:)
       @connection = connection
       @metadata = metadata
       @timeout = timeout
-      @logger = logger
-      @logs_at_debug_level = logger.respond_to?(:debug?) ? logger.method(:debug?) : -> { true }
-      @connection_lifecycle = Mutex.new
+      @log = Internal::Logging::ClientLog.new(logger)
+      @connection_lifecycle = Monitor.new
       @connection_opened = false
       @serving_state = Internal::Client::ServingState.new
-      @context_admission = Internal::Client::ContextAdmission.new(logger)
+      @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
+      @watches = Internal::Client::Watches.new(@log)
+      @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, @log)
     end
 
     # Gets the values ConfigDirector serves and makes the client ready. It waits for the first values, up to
@@ -63,7 +62,8 @@ module ConfigDirector
     end
 
     # Evaluates a config as {#get_value} does and returns the evaluation: the value, the reason it was
-    # served, its value ID and its variation.
+    # served, its value ID and its variation. Like every read, it calls the +config_evaluated+ handlers
+    # before it returns.
     #
     # @param config_key [String] the config key to evaluate
     # @param default_value [Boolean, String, Integer, Float, Hash, Array] the in-code default value, returned
@@ -73,17 +73,12 @@ module ConfigDirector
     # @raise [ConfigDirectorValidationError] when the in-code default value is +nil+ or of any other class,
     #   or when the context is not a {Context}
     def evaluate(config_key, default_value, context = nil)
-      config_read = config_read_of(config_key, default_value, context)
-      evaluation = @serving_state.served_configs&.evaluation(config_read) ||
-                   config_read.in_code_default_evaluation("client-not-ready")
-      log_at_debug_level do
-        "#{LOG_PREFIX} Evaluated #{evaluation.key.inspect} to #{evaluation.value.inspect} (#{evaluation.reason})"
-      end
-      evaluation
+      @config_reader.read(@config_reader.config_read_of(config_key, default_value, context))
     end
 
     # Returns what every config serves to the given context, keyed by config key, or only the configs listed
-    # in +config_keys+. It records no telemetry, and returns an empty Hash when the client is not ready.
+    # in +config_keys+. It records no telemetry, calls no +config_evaluated+ handler, and returns an empty
+    # Hash when the client is not ready.
     #
     # @param context [Context, nil] the context to evaluate the targeting rules for
     # @param config_keys [Array<String>, nil] the config keys to return. Every config is returned when left
@@ -92,14 +87,104 @@ module ConfigDirector
     # @raise [ConfigDirectorValidationError] when the context is not a {Context} or +config_keys+ is not an
     #   Array
     def get_all_configs(context: nil, config_keys: nil)
-      reject_config_keys_that_are_not_an_array(config_keys)
-      admitted_context = @context_admission.admitted_context_or_none(context)
-
-      @serving_state.served_configs&.states(admitted_context, config_keys) || {}
+      @config_reader.states(context, config_keys)
     end
 
-    # Closes the client. Afterwards the client is not ready, every read returns its in-code default value
-    # and {#get_all_configs} is empty. It is safe to call more than once.
+    # Calls the block with the config's value each time the client receives values that include the config
+    # or leave it out, even when its value is the same. The block is not called when the watch is
+    # registered, so a watch registered before {#init} receives the first value during it. When the values
+    # received leave the config out, the block receives the in-code default value. The block runs on the
+    # thread that delivered the values, after the +configs_updated+ handlers, and an error it raises is
+    # logged and ignored.
+    #
+    # @example
+    #   subscription = client.watch("new-checkout", false, ConfigDirector::Context.new(id: "user-123")) do |enabled|
+    #     puts "new-checkout is now #{enabled}"
+    #   end
+    #   subscription.close
+    #
+    # @param config_key [String] the config key to watch
+    # @param default_value [Boolean, String, Integer, Float, Hash, Array] the in-code default value, as
+    #   {#get_value} takes it. Its class decides the class of the value the block receives.
+    # @param context [Context, nil] the context to evaluate the targeting rules for
+    # @yieldparam value [Boolean, String, Integer, Float, Hash, Array] the config's value, or the in-code
+    #   default value
+    # @return [Subscription] the watch, which {Subscription#close} removes
+    # @raise [ConfigDirectorValidationError] when no block is given, when the in-code default value is +nil+
+    #   or of any other class, or when the context is not a {Context}
+    def watch(config_key, default_value, context = nil, &callback)
+      config_read = @config_reader.config_read_of(config_key, default_value, context)
+      raise ConfigDirectorValidationError, "A watch needs a block to call with the value." if callback.nil?
+
+      @watches.add(config_read, callback)
+    end
+
+    # Removes the first watch on the config key whose block is +callback+, or every watch on the config key
+    # when +callback+ is left out. A block is found when it is the same Proc or lambda, such as one given
+    # to {#watch} as +&on_change+. To remove one watch whatever its block, close the {Subscription}
+    # {#watch} returned.
+    #
+    # @param config_key [String] the config key the watch is on
+    # @param callback [Proc, nil] the block of the watch to remove
+    # @return [void]
+    def unwatch(config_key, callback = nil)
+      @watches.remove(config_key, callback)
+    end
+
+    # Removes every watch on every config key.
+    #
+    # @return [void]
+    def unwatch_all
+      @watches.remove_all
+    end
+
+    # Registers a handler for one of the events the client emits. A handler registered twice runs twice.
+    #
+    # - +:client_ready+ handlers are called with no argument once, when the client first receives values
+    #   and becomes ready, after the +configs_updated+ handlers and the watches.
+    # - +:configs_updated+ handlers are called with a {ConfigsUpdatedEvent} each time the client receives
+    #   values, the first time included.
+    # - +:config_evaluated+ handlers are called with a {ConfigEvaluatedEvent} each time {#get_value},
+    #   {#evaluate} or a watch evaluates a config, on the thread that read, before the read returns.
+    # - +:connection_error+ handlers will be called with a {ConnectionErrorEvent} when the connection to
+    #   ConfigDirector fails and will not be retried. The client does not connect to ConfigDirector yet, so
+    #   nothing calls them.
+    #
+    # +client_ready+ and +configs_updated+ handlers run on the thread that delivered the values. Handlers
+    # may read from the client, and an error a handler raises is logged and ignored.
+    #
+    # @example
+    #   client.on(:configs_updated) { |event| puts "Updated: #{event.keys.join(", ")}" }
+    #
+    # @param event_name [Symbol] +:client_ready+, +:configs_updated+, +:config_evaluated+ or
+    #   +:connection_error+
+    # @param handler [#call, nil] the handler, when no block is given: any object that responds to +call+,
+    #   such as a lambda or +method(:name)+
+    # @yield the event, as +handler+ would receive it
+    # @return [Subscription] the registration, which {Subscription#close} removes
+    # @raise [ConfigDirectorValidationError] when the event name is not one of the four Symbols, when both a
+    #   handler and a block are given or neither is, or when the handler does not respond to +call+
+    def on(event_name, handler = nil, &block)
+      @event_handlers.add(event_name, Internal::Client::EventHandlers.one_handler_of(handler, block))
+    end
+
+    # Removes the first registration of +handler+ for the event, or every handler of the event, hooks
+    # included, when +handler+ is left out. A handler is found when it is equal to +handler+, so
+    # +method(:name)+ finds a handler registered as +method(:name)+, while a block or lambda is found only
+    # as the same object.
+    #
+    # @param event_name [Symbol] +:client_ready+, +:configs_updated+, +:config_evaluated+ or
+    #   +:connection_error+
+    # @param handler [#call, nil] the handler to remove
+    # @return [void]
+    # @raise [ConfigDirectorValidationError] when the event name is not one of the four Symbols
+    def off(event_name, handler = nil)
+      @event_handlers.remove(event_name, handler)
+    end
+
+    # Closes the client and removes every handler, hook and watch. Afterwards the client is not ready, every
+    # read returns its in-code default value and {#get_all_configs} is empty. It is safe to call more than
+    # once.
     #
     # @return [void]
     def close
@@ -107,10 +192,12 @@ module ConfigDirector
         return if closed?
 
         @serving_state.close
+        @event_handlers.remove_all
+        @watches.remove_all
         @connection.close if @connection_opened
       end
 
-      log_at_debug_level { "#{LOG_PREFIX} close has been called, the client is now closed" }
+      @log.debug { "close has been called, the client is now closed" }
     end
 
     # @return [Boolean] whether {#close} has been called
@@ -130,41 +217,36 @@ module ConfigDirector
     def open_the_connection_once
       return if @connection_opened
 
-      @connection.open { |payload| take_in(payload) }
       @connection_opened = true
+      @connection.open { |payload| take_in(payload) }
     end
 
     def warn_that_no_values_arrived_in_time
-      @logger.warn(
-        "#{LOG_PREFIX} Timed out waiting for initialization after #{format("%g", @timeout)} seconds. " \
+      @log.warn(
+        "Timed out waiting for initialization after #{format("%g", @timeout)} seconds. " \
         "Configs return the in-code default value until values arrive."
       )
     end
 
     def take_in(payload)
-      arrival = @serving_state.serve(Internal::Client::ServedConfigs.new(payload: payload, metadata: @metadata))
-      return unless arrival == :first_values
+      served_configs = Internal::Client::ServedConfigs.new(payload: payload, metadata: @metadata)
+      arrival, replaced_configs = @serving_state.serve(served_configs)
 
-      log_at_debug_level { "#{LOG_PREFIX} Received initial payload from the server, client is ready" }
+      case arrival
+      when :after_close then nil
+      when :newer_values then deliver_the_update(served_configs.update_since(replaced_configs))
+      when :first_values
+        deliver_the_update(served_configs.update_since(replaced_configs))
+        @event_handlers.deliver_client_ready
+        @log.debug { "Received initial payload from the server, client is ready" }
+      end
     end
 
-    def config_read_of(config_key, default_value, context)
-      Internal::Client::ConfigRead.new(
-        config_key: config_key,
-        in_code_default_value: Internal::Value::InCodeDefaultValue.from(default_value),
-        context: @context_admission.admitted_context_or_none(context)
-      )
-    end
-
-    def reject_config_keys_that_are_not_an_array(config_keys)
-      return if config_keys.nil? || config_keys.is_a?(Array)
-
-      raise ConfigDirectorValidationError,
-            "Invalid config keys of class #{config_keys.class}. The config keys must be an Array of Strings."
-    end
-
-    def log_at_debug_level
-      @logger.debug(yield) if @logs_at_debug_level.call
+    def deliver_the_update(update)
+      @event_handlers.deliver_configs_updated(update)
+      @watches.deliver_on(update.keys + update.removed_keys) do |config_read|
+        @config_reader.read(config_read).value
+      end
     end
   end
 end

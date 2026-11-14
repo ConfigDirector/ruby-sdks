@@ -2,7 +2,7 @@
 
 target :lib do
   signature "sig"
-  library "json", "logger", "uri"
+  library "json", "logger", "monitor", "uri"
   check "lib"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end

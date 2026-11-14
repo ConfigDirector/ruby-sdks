@@ -82,6 +82,28 @@ RSpec.describe "Creating a client" do
     expect(connection.values).to eq({ "new-checkout" => true, "sizes" => ["small"] })
   end
 
+  it "returns each hook as it was given" do
+    ready_hook = -> {}
+    evaluated_hooks = [->(_event) {}, ->(_event) {}]
+
+    hooks = ConfigDirector::ClientHooks.new(client_ready: ready_hook, config_evaluated: evaluated_hooks)
+
+    expect(hooks.client_ready).to be(ready_hook)
+    expect(hooks.config_evaluated).to eq(evaluated_hooks)
+    expect(hooks.configs_updated).to be_nil
+    expect(hooks.connection_error).to be_nil
+  end
+
+  it "keeps the hooks it was built with when the Array they were built from changes" do
+    first_hook = -> {}
+    ready_hooks = [first_hook]
+    hooks = ConfigDirector::ClientHooks.new(client_ready: ready_hooks)
+
+    ready_hooks << -> {}
+
+    expect(hooks.client_ready).to eq([first_hook])
+  end
+
   it "compares connection options by their values" do
     expect(ConfigDirector::ConnectionOptions.new(mode: "polling"))
       .to eq(ConfigDirector::ConnectionOptions.new(mode: "polling"))

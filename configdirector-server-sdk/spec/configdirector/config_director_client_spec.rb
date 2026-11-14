@@ -16,15 +16,30 @@ RSpec.describe ConfigDirector::ConfigDirectorClient do
     )
   end
 
-  def payload_serving(served_text)
-    ConfigDirector::Internal::Connection::ServerSdkPayload.new(
-      configs: { "integer-config" => integer_config_serving(served_text) }, segments: {}
+  def string_config_serving(served_text)
+    ConfigDirector::Internal::Connection::ConfigDefinition.new(
+      id: "5c8a2d94-1b7f-4e63-a0d5-9f3b6c1e7d04", key: "day-of-the-week-config", type: "string",
+      targeting_rules: ConfigDirector::Internal::Evaluation::TargetingRules.new(
+        default_value: served_text, default_value_id: nil, default_variation_id: nil, rules: []
+      ),
+      variations: []
     )
   end
 
-  def client_on(connection, timeout: 5.0)
+  def payload_serving(served_text)
+    payload_of(integer_config_serving(served_text))
+  end
+
+  def payload_of(*config_definitions)
+    ConfigDirector::Internal::Connection::ServerSdkPayload.new(
+      configs: config_definitions.to_h { |definition| [definition.key, definition] }, segments: {}
+    )
+  end
+
+  def client_on(connection, timeout: 5.0, hooks: ConfigDirector::ClientHooks.new)
     described_class.new(
-      connection: connection, metadata: ConfigDirector::Metadata.new, timeout: timeout, logger: logger
+      connection: connection, metadata: ConfigDirector::Metadata.new, timeout: timeout, logger: logger,
+      hooks: hooks
     )
   end
 
@@ -223,5 +238,96 @@ RSpec.describe ConfigDirector::ConfigDirectorClient do
     expect(pending_init.value).to be < 10
     expect(client.ready?).to be(false)
     expect(logger.messages_at(:warn)).to be_empty
+  end
+
+  it "delivers the next payload to a watch registered after init" do
+    connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("1")])
+    client = client_on(connection)
+    client.init
+    values = []
+    client.watch("integer-config", 0) { |value| values << value }
+
+    connection.deliver(payload_serving("2"))
+
+    expect(values).to eq([2])
+  end
+
+  it "names the keys a payload left out in the removed keys of configs_updated" do
+    connection = ScriptedConnection.new(
+      payloads_delivered_when_opened: [payload_of(integer_config_serving("1"), string_config_serving("Monday"))]
+    )
+    client = client_on(connection)
+    client.init
+    updates = []
+    client.on(:configs_updated) { |update| updates << update }
+
+    connection.deliver(payload_of(integer_config_serving("2")))
+
+    expect(updates).to eq(
+      [ConfigDirector::ConfigsUpdatedEvent.new(keys: ["integer-config"], removed_keys: ["day-of-the-week-config"])]
+    )
+  end
+
+  it "delivers the in-code default value to a watch on a key the next payload left out" do
+    connection = ScriptedConnection.new(
+      payloads_delivered_when_opened: [payload_of(integer_config_serving("1"), string_config_serving("Monday"))]
+    )
+    client = client_on(connection)
+    values = []
+    client.watch("day-of-the-week-config", "Sunday") { |value| values << value }
+    client.init
+
+    connection.deliver(payload_of(integer_config_serving("2")))
+
+    expect(values).to eq(%w[Monday Sunday])
+  end
+
+  it "delivers client_ready once, for the first payload only" do
+    connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("1")])
+    ready_deliveries = []
+    hooks = ConfigDirector::ClientHooks.new(client_ready: -> { ready_deliveries << :ready })
+    client = client_on(connection, hooks: hooks)
+    client.init
+
+    connection.deliver(payload_serving("2"))
+
+    expect(ready_deliveries).to eq([:ready])
+  end
+
+  it "delivers to a watch every payload that carries its key, even when the value is the same" do
+    connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("1")])
+    client = client_on(connection)
+    values = []
+    client.watch("integer-config", 0) { |value| values << value }
+    client.init
+
+    connection.deliver(payload_serving("1"))
+
+    expect(values).to eq([1, 1])
+  end
+
+  it "delivers configs_updated and the watches on the thread that delivered the payload" do
+    connection = ScriptedConnection.new
+    client = client_on(connection, timeout: 0.05)
+    client.init
+    delivering_threads = Queue.new
+    client.on(:configs_updated) { |_update| delivering_threads << Thread.current }
+    client.watch("integer-config", 0) { |_value| delivering_threads << Thread.current }
+
+    delivery = Thread.new { connection.deliver(payload_serving("1")) }
+    delivery.join
+
+    expect([delivering_threads.pop, delivering_threads.pop]).to eq([delivery, delivery])
+  end
+
+  it "opens its connection once when a configs_updated handler calls init during init" do
+    connection = ScriptedConnection.new(payloads_delivered_when_opened: [payload_serving("42")])
+    client = client_on(connection)
+    client.on(:configs_updated) { |_update| client.init }
+
+    client.init
+
+    expect(connection.open_count).to eq(1)
+    expect(logger.messages_at(:error)).to be_empty
   end
 end

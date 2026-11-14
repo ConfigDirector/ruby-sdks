@@ -96,12 +96,12 @@ module ConfigDirector
       end
 
       class ContextAdmission
-        LOG_AN_INVALID_KIND: Hash[Symbol, ^(_Logger logger, String kind_sample) -> void]
+        LOG_AN_INVALID_KIND: Hash[Symbol, ^(Logging::ClientLog log, String kind_sample) -> void]
 
-        @logger: _Logger
+        @log: Logging::ClientLog
         @invalid_context_kinds: InvalidContextKinds
 
-        def initialize: (_Logger logger) -> void
+        def initialize: (Logging::ClientLog log) -> void
 
         def admitted_context_or_none: (untyped context) -> Context?
       end
@@ -124,6 +124,111 @@ module ConfigDirector
 
       type arrival_of_values = :after_close | :first_values | :newer_values
 
+      class ConfigReader
+        @serving_state: ServingState
+        @event_handlers: EventHandlers
+        @log: Logging::ClientLog
+        @context_admission: ContextAdmission
+
+        def initialize: (ServingState serving_state, EventHandlers event_handlers, Logging::ClientLog log) -> void
+
+        def config_read_of: (untyped config_key, untyped default_value, untyped context) -> ConfigRead
+
+        def read: (ConfigRead config_read) -> ConfigEvaluation
+
+        def states: (untyped context, untyped config_keys) -> Hash[String, ConfigState]
+
+        private
+
+        def reject_config_keys_that_are_not_an_array: (untyped config_keys) -> void
+      end
+
+      class Registrations[T < Object]
+        @lock: Thread::Mutex
+        @registrations_by_topic: Hash[untyped, Array[T]]
+
+        def initialize: () -> void
+
+        def add: (untyped topic, T registration) -> Subscription
+
+        def remove_first: (untyped topic) { (T registration) -> boolish } -> nil
+
+        def remove_all_on: (untyped topic) -> nil
+
+        def remove_all: () -> nil
+
+        def on: (Array[untyped] topics) -> Array[T]
+      end
+
+      class EventHandlers
+        class HandlerRegistration < Data
+          attr_reader handler: _EventHandler & Object
+
+          def self.new: (handler: _EventHandler & Object) -> instance
+        end
+
+        HOOKS_BY_EVENT_NAME: Hash[Symbol, ^(ClientHooks hooks) -> untyped]
+
+        @log: Logging::ClientLog
+        @registrations: Registrations[HandlerRegistration]
+
+        def self.one_handler_of: (untyped handler, Proc? block) -> untyped
+
+        def initialize: (ClientHooks hooks, Logging::ClientLog log) -> void
+
+        def add: (untyped event_name, _EventHandler & Object handler) -> Subscription
+
+        def remove: (untyped event_name, untyped handler) -> nil
+
+        def remove_all: () -> nil
+
+        def deliver_client_ready: () -> void
+
+        def deliver_configs_updated: (ConfigsUpdatedEvent update) -> void
+
+        def deliver_config_evaluated: (ConfigEvaluation evaluation) -> void
+
+        private
+
+        def reject_an_unknown_event_name: (untyped event_name) -> void
+
+        def register: (Symbol event_name, _EventHandler & Object handler) -> Subscription
+
+        def register_the_hooks_in: (ClientHooks hooks) -> void
+
+        def register_a_hook: (Symbol event_name, untyped handler) -> void
+
+        def handlers_given: (untyped hooks_of_the_event) -> Array[untyped]
+
+        def deliver: (Symbol event_name, *untyped arguments) -> void
+      end
+
+      class Watches
+        class Watch < Data
+          attr_reader config_read: ConfigRead
+          attr_reader callback: Proc
+
+          def self.new: (config_read: ConfigRead, callback: Proc) -> instance
+
+          def config_key: () -> String
+
+          def receive: (config_value value) -> void
+        end
+
+        @log: Logging::ClientLog
+        @registrations: Registrations[Watch]
+
+        def initialize: (Logging::ClientLog log) -> void
+
+        def add: (ConfigRead config_read, Proc callback) -> Subscription
+
+        def remove: (untyped config_key, untyped callback) -> nil
+
+        def remove_all: () -> nil
+
+        def deliver_on: (Array[String] config_keys) { (ConfigRead config_read) -> config_value } -> void
+      end
+
       class ServingState
         @lock: Thread::Mutex
         @values_arrived_or_client_closed: Thread::ConditionVariable
@@ -136,7 +241,7 @@ module ConfigDirector
 
         def closed?: () -> bool
 
-        def serve: (ServedConfigs served_configs) -> arrival_of_values
+        def serve: (ServedConfigs served_configs) -> [arrival_of_values, ServedConfigs?]
 
         def close: () -> void
 
@@ -158,6 +263,10 @@ module ConfigDirector
         def evaluation: (ConfigRead config_read) -> ConfigEvaluation
 
         def states: (Context? context, Array[String]? config_keys) -> Hash[String, ConfigState]
+
+        def update_since: (ServedConfigs? replaced_configs) -> ConfigsUpdatedEvent
+
+        def config_keys: () -> Array[String]
 
         private
 

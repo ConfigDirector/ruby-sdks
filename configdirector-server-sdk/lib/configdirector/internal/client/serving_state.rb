@@ -22,11 +22,12 @@ module ConfigDirector
         def serve(served_configs)
           @lock.synchronize do
             arrival = arrival_of_values
+            replaced_configs = @served_configs
             unless arrival == :after_close
               @served_configs = served_configs
               @values_arrived_or_client_closed.broadcast
             end
-            arrival
+            [arrival, replaced_configs]
           end
         end
 

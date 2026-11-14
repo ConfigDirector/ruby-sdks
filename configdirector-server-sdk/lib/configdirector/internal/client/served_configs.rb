@@ -21,10 +21,20 @@ module ConfigDirector
           evaluation_of(definition, config_read)
         end
 
+        def update_since(replaced_configs)
+          ConfigsUpdatedEvent.new(keys: config_keys, removed_keys: Array(replaced_configs&.config_keys) - config_keys)
+        end
+
         def states(context, config_keys)
           payload.configs
                  .select { |config_key, _definition| config_keys.nil? || config_keys.include?(config_key) }
                  .transform_values { |definition| definition.state_serving(value_served_to(context, definition)) }
+        end
+
+        protected
+
+        def config_keys
+          payload.configs.keys
         end
 
         private

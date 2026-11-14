@@ -53,6 +53,23 @@ module ConfigDirector
 
         def self.invalid: (untyped log_level) -> ConfigDirectorValidationError
       end
+
+      class ClientLog
+        LINE_PREFIX: String
+
+        @logger: _Logger
+        @writes_debug_lines: _LogLevelCheck
+
+        def initialize: (_Logger & Object logger) -> void
+
+        def debug: () { () -> String } -> void
+
+        def warn: (String line) -> void
+
+        def error: (String line) -> void
+
+        def ignoring_errors_from: (String source) { () -> untyped } -> void
+      end
     end
   end
 end

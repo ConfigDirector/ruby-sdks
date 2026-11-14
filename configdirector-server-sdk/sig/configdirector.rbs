@@ -33,10 +33,11 @@ module ConfigDirector
     Internal::Connection::_Connection internal_connection,
     Metadata metadata,
     ConnectionOptions connection_options,
-    _Logger & Object logger
+    _Logger & Object logger,
+    ClientHooks hooks
   ) -> ConfigDirectorClient
 
-  def self.warn_of_a_polling_interval_below_the_minimum: (ConnectionOptions connection, _Logger logger) -> void
+  def self.warn_of_a_polling_interval_below_the_minimum: (ConnectionOptions connection, _Logger & Object logger) -> void
 
   class ConfigDirectorError < StandardError
   end
@@ -82,10 +83,62 @@ module ConfigDirector
     def initialize: (?event_queue_limit: Integer, ?flush_interval: seconds) -> void
   end
 
+  interface _EventHandler
+    def call: (*untyped) -> untyped
+  end
+
+  type hook = _EventHandler | Array[_EventHandler]
+
   class ClientHooks
     include Internal::ComparedByValue
 
-    def initialize: () -> void
+    attr_reader client_ready: hook?
+    attr_reader configs_updated: hook?
+    attr_reader config_evaluated: hook?
+    attr_reader connection_error: hook?
+
+    def initialize: (
+      ?client_ready: hook?,
+      ?configs_updated: hook?,
+      ?config_evaluated: hook?,
+      ?connection_error: hook?
+    ) -> void
+  end
+
+  class ConfigsUpdatedEvent
+    include Internal::ComparedByValue
+
+    attr_reader keys: Array[String]
+    attr_reader removed_keys: Array[String]
+
+    def initialize: (keys: Array[String], removed_keys: Array[String]) -> void
+  end
+
+  class ConfigEvaluatedEvent
+    include Internal::ComparedByValue
+
+    attr_reader evaluation: ConfigEvaluation
+
+    def initialize: (evaluation: ConfigEvaluation) -> void
+  end
+
+  class ConnectionErrorEvent
+    include Internal::ComparedByValue
+
+    attr_reader error: Exception
+
+    def initialize: (error: Exception) -> void
+  end
+
+  class Subscription
+    @removal: ^() -> nil
+    @closed: bool
+
+    def initialize: () { () -> nil } -> void
+
+    def close: () -> nil
+
+    def closed?: () -> bool
   end
 
   class Context
@@ -168,23 +221,23 @@ module ConfigDirector
   end
 
   class ConfigDirectorClient
-    LOG_PREFIX: String
-
     @connection: Internal::Connection::_Connection
     @metadata: Metadata
     @timeout: Float
-    @logger: _Logger
-    @logs_at_debug_level: _LogLevelCheck
-    @connection_lifecycle: Thread::Mutex
+    @log: Internal::Logging::ClientLog
+    @connection_lifecycle: Monitor
     @connection_opened: bool
     @serving_state: Internal::Client::ServingState
-    @context_admission: Internal::Client::ContextAdmission
+    @event_handlers: Internal::Client::EventHandlers
+    @watches: Internal::Client::Watches
+    @config_reader: Internal::Client::ConfigReader
 
     def initialize: (
       connection: Internal::Connection::_Connection,
       metadata: Metadata,
       timeout: Float,
-      logger: _Logger & Object
+      logger: _Logger & Object,
+      hooks: ClientHooks
     ) -> void
 
     def init: () -> void
@@ -196,6 +249,16 @@ module ConfigDirector
     def evaluate: (String config_key, config_value default_value, ?Context? context) -> ConfigEvaluation
 
     def get_all_configs: (?context: Context?, ?config_keys: Array[String]?) -> Hash[String, ConfigState]
+
+    def watch: (String config_key, config_value default_value, ?Context? context) { (config_value value) -> void } -> Subscription
+
+    def unwatch: (String config_key, ?Proc? callback) -> nil
+
+    def unwatch_all: () -> nil
+
+    def on: (Symbol event_name, ?_EventHandler? handler) ?{ (*untyped) -> void } -> Subscription
+
+    def off: (Symbol event_name, ?_EventHandler? handler) -> nil
 
     def close: () -> void
 
@@ -211,10 +274,6 @@ module ConfigDirector
 
     def take_in: (Internal::Connection::ServerSdkPayload payload) -> void
 
-    def config_read_of: (untyped config_key, untyped default_value, untyped context) -> Internal::Client::ConfigRead
-
-    def reject_config_keys_that_are_not_an_array: (untyped config_keys) -> void
-
-    def log_at_debug_level: () { () -> String } -> void
+    def deliver_the_update: (ConfigsUpdatedEvent update) -> void
   end
 end

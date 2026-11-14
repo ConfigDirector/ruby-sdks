@@ -13,6 +13,10 @@ require_relative "configdirector/context"
 require_relative "configdirector/variation"
 require_relative "configdirector/config_state"
 require_relative "configdirector/config_evaluation"
+require_relative "configdirector/configs_updated_event"
+require_relative "configdirector/config_evaluated_event"
+require_relative "configdirector/connection_error_event"
+require_relative "configdirector/subscription"
 require_relative "configdirector/internal/evaluation"
 require_relative "configdirector/internal/value/typed_value"
 require_relative "configdirector/internal/value/in_code_default_value"
@@ -22,6 +26,7 @@ require_relative "configdirector/internal/connection/config_definition"
 require_relative "configdirector/internal/connection/hard_coded_connection"
 require_relative "configdirector/internal/connection/polling_interval"
 require_relative "configdirector/internal/logging/default_logger"
+require_relative "configdirector/internal/logging/client_log"
 require_relative "configdirector/internal/client/client_options_validation"
 require_relative "configdirector/internal/client/context_kind"
 require_relative "configdirector/internal/client/invalid_context_kinds"
@@ -29,6 +34,10 @@ require_relative "configdirector/internal/client/context_admission"
 require_relative "configdirector/internal/client/config_read"
 require_relative "configdirector/internal/client/served_configs"
 require_relative "configdirector/internal/client/serving_state"
+require_relative "configdirector/internal/client/registrations"
+require_relative "configdirector/internal/client/event_handlers"
+require_relative "configdirector/internal/client/watches"
+require_relative "configdirector/internal/client/config_reader"
 require_relative "configdirector/config_director_client"
 
 # The ConfigDirector server SDK.
@@ -75,12 +84,13 @@ module ConfigDirector
     logger ||= Internal::Logging::DefaultLogger.writing_from(log_level)
     warn_of_a_polling_interval_below_the_minimum(connection, logger)
 
-    client_on(Internal::Connection::HardCodedConnection.new, metadata, connection, logger)
+    client_on(Internal::Connection::HardCodedConnection.new, metadata, connection, logger, hooks || ClientHooks.new)
   end
 
-  def self.client_on(internal_connection, metadata, connection_options, logger)
+  def self.client_on(internal_connection, metadata, connection_options, logger, hooks)
     ConfigDirectorClient.new(
-      connection: internal_connection, metadata: metadata, timeout: connection_options.timeout.to_f, logger: logger
+      connection: internal_connection, metadata: metadata, timeout: connection_options.timeout.to_f, logger: logger,
+      hooks: hooks
     )
   end
 
@@ -88,8 +98,8 @@ module ConfigDirector
     polling_interval = Internal::Connection::PollingInterval.new(configured_seconds: connection.polling_interval)
     return unless connection.mode == "polling" && polling_interval.raised_to_the_minimum?
 
-    logger.warn(
-      "[ConfigDirectorClient] polling_interval of #{polling_interval.configured_seconds} seconds is below the " \
+    Internal::Logging::ClientLog.new(logger).warn(
+      "polling_interval of #{polling_interval.configured_seconds} seconds is below the " \
       "minimum of #{Internal::Connection::PollingInterval::MINIMUM_SECONDS} seconds. " \
       "Using #{polling_interval.seconds} seconds."
     )

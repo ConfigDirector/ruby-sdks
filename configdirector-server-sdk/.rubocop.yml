@@ -18,6 +18,11 @@ Style/Documentation:
     - lib/configdirector/internal/**/*
     - spec/**/*
 
+Style/SymbolProc:
+  AllowedMethods:
+    - define_method
+    - lambda
+
 Style/StringLiterals:
   EnforcedStyle: double_quotes
 
