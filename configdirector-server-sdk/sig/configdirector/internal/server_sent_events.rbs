@@ -1,0 +1,51 @@
+module ConfigDirector
+  module Internal
+    module ServerSentEvents
+      class ServerSentEvent < Data
+        attr_reader type: String
+        attr_reader data: String
+
+        def self.new: (type: String, data: String) -> instance
+      end
+
+      class EventStreamLimitExceeded < StandardError
+      end
+
+      class EventStreamParser
+        MAXIMUM_LINE_BYTES: Integer
+        MAXIMUM_EVENT_DATA_BYTES: Integer
+        LINE_END: Regexp
+        BYTE_ORDER_MARK: String
+        ASCII_DIGITS: Regexp
+
+        @on_event: ^(ServerSentEvent event) -> void
+        @at_the_start_of_the_stream: bool
+        @unfinished_line: String
+        @last_chunk_ended_on_a_carriage_return: bool
+        @event_type: String
+        @event_data: String
+
+        attr_reader last_event_id: String
+        attr_reader retry_milliseconds: Integer?
+
+        def initialize: (last_event_id: String) { (ServerSentEvent event) -> void } -> void
+
+        def feed: (String chunk) -> void
+
+        private
+
+        def extend_unfinished_line: (String fragment) -> void
+
+        def finish_line: (String fragment) -> void
+
+        def read_line: (String line) -> void
+
+        def read_field: (String name, String value) -> void
+
+        def append_data: (String value) -> void
+
+        def dispatch_event: () -> void
+      end
+    end
+  end
+end
