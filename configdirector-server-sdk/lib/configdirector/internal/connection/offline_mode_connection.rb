@@ -14,6 +14,8 @@ module ConfigDirector
           :values_awaited
         end
 
+        def restart_in_a_forked_process(**); end
+
         def close; end
       end
     end

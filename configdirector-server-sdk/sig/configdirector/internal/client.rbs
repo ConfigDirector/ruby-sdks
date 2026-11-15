@@ -288,6 +288,72 @@ module ConfigDirector
         def deliver_the_update: (ConfigsUpdatedEvent update) -> void
       end
 
+      module WhatFollowsAFork
+        WHAT_FOLLOWS_A_FORK_BY_MODE: Hash[String, Symbol]
+
+        def self.for_a_client_with: (mode: String, closed: bool, connection_failed_unrecoverably: bool) -> Symbol
+      end
+
+      interface _ProcessThatCanFork
+        def _fork: () -> Integer
+
+        def daemon: (*untyped) -> Integer
+      end
+
+      module RestartInForkedProcesses : _ProcessThatCanFork
+        def _fork: () -> Integer
+
+        def daemon: (*untyped) -> Integer
+      end
+
+      class LiveClientConnections
+        OF_THE_PROCESS: LiveClientConnections
+
+        @lock: Thread::Mutex
+        @client_connections: Array[ClientConnection]
+
+        def initialize: () -> void
+
+        def add: (ClientConnection client_connection) -> nil
+
+        def remove: (ClientConnection client_connection) -> nil
+
+        def restart_in_a_forked_process: () -> nil
+
+        private
+
+        def restart_each_in_a_forked_process: () -> nil
+      end
+
+      class ClientConnection
+        @connection: Connection::_Connection
+        @mode: String
+        @serving_state: ServingState
+        @log: Logging::ClientLog
+        @report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        @deliver_payload: ^(Connection::ServerSdkPayload payload) -> void
+
+        def initialize: (
+          connection: Connection::_Connection,
+          mode: String,
+          serving_state: ServingState,
+          intake: ConnectionIntake,
+          log: Logging::ClientLog
+        ) -> void
+
+        def open: () -> Symbol
+
+        def close: () -> void
+
+        def restart_in_a_forked_process: () -> void
+
+        private
+
+        def what_follows_a_fork: () -> Symbol
+
+        def restart_the_connection: () -> void
+      end
+
       class ServingState
         @metadata: Metadata
         @lock: Thread::Mutex
@@ -304,6 +370,8 @@ module ConfigDirector
 
         def closed?: () -> bool
 
+        def connection_failed_unrecoverably?: () -> bool
+
         def serve: (Connection::ServerSdkPayload payload) -> [arrival_of_values, ConfigsUpdatedEvent]
 
         def end_the_delivery_of_the_first_values: () -> void
@@ -311,6 +379,8 @@ module ConfigDirector
         def close: () -> void
 
         def expect_no_values_from_the_connection: () -> void
+
+        def leave_the_delivery_of_the_first_values_to_the_parent_process: () -> void
 
         def timed_out_waiting_for_the_first_values?: (Float give_up_at_monotonic_seconds) -> bool
 

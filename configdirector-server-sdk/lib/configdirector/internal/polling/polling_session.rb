@@ -6,12 +6,12 @@ module ConfigDirector
   module Internal
     module Polling
       class PollingSession
-        def initialize(endpoint:, timing:, log:)
+        def initialize(endpoint:, timing:, log:, last_update_timestamp: nil)
           @endpoint = endpoint
           @timing = timing
           @log = log
           @session_id = SecureRandom.uuid
-          @last_update_timestamp = nil
+          @last_update_timestamp = last_update_timestamp
           @seconds_before_the_next_poll = timing.seconds_between_polls
         end
 
@@ -28,6 +28,18 @@ module ConfigDirector
           end
 
           what_follows
+        end
+
+        def session_of_a_forked_process
+          PollingSession.new(
+            endpoint: @endpoint, timing: @timing, log: @log, last_update_timestamp: @last_update_timestamp
+          )
+        end
+
+        def poll_at_once_and_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+          return if poll(report_unrecoverable_error, deliver_payload_text) == :end_of_polling
+
+          poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
         end
 
         def poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)

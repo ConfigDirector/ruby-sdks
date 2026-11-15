@@ -79,6 +79,14 @@ is stopped when the example ends. No spec stubs `net/http`. An example that need
 answer sends it in pieces: Windows takes one large write whole, whatever the other side reads, so only a later
 write meets the connection the SDK closed.
 
+The specs of a client in a forked process fork the process that runs RSpec. The forked process reports what it saw
+through a pipe and leaves with `exit!`, so it runs none of RSpec's hooks and none of the examples that follow. Those
+specs run wherever Ruby can fork, which in CI is Ubuntu and macOS, and are left out on Windows.
+
+One example of the client's lifecycle runs on Ruby 4.0 and later only: the one that garbage collects a closed client.
+The `timeout` library that Ruby 3.3 and 3.4 ship keeps the thread of a finished request reachable from its own
+thread, and with it the client that thread worked for, so there the example would fail whatever the SDK holds.
+
 One example of each transport does not run on Windows: the one that connects to an address that never answers.
 Ruby on Windows calls Winsock's blocking `connect` (`rb_w32_connect` in Ruby's `win32/win32.c`), which neither
 `Net::HTTP#open_timeout` nor `Thread#raise` can end, so there the attempt lasts until Windows gives up on it. A

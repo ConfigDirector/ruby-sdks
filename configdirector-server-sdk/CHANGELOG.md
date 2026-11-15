@@ -122,3 +122,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `close` also removes every handler, hook and watch.
 - `Context`, `Variation`, `ConfigState`, `ConfigEvaluation`, `ConfigsUpdatedEvent`, `ConfigEvaluatedEvent`,
   `ConnectionErrorEvent` and the option objects compare by value with `==`, and cannot be changed once built.
+- A client on which `init` was called before the process forked, as under Puma in cluster mode, Unicorn or
+  Passenger, starts its own connection in the forked process by itself. It serves the values it was copied with at
+  once, and handlers and watches registered before the fork keep firing there. The parent's connection is not
+  affected. A client that was never initialized, was closed, was refused by ConfigDirector, or is offline does
+  nothing at a fork.

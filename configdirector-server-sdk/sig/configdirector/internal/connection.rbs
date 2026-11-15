@@ -6,6 +6,10 @@ module ConfigDirector
           report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
         ) { (ServerSdkPayload payload) -> void } -> Symbol
 
+        def restart_in_a_forked_process: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (ServerSdkPayload payload) -> void } -> void
+
         def close: () -> void
       end
 
@@ -147,6 +151,8 @@ module ConfigDirector
         def self.for_a_client_with: (**untyped) -> OfflineModeConnection
 
         def open: (**untyped) { (ServerSdkPayload payload) -> void } -> Symbol
+
+        def restart_in_a_forked_process: (**untyped) { (ServerSdkPayload payload) -> void } -> void
 
         def close: () -> void
       end

@@ -94,9 +94,9 @@ Created the ConfigDirector client of process 13548. Ready: true
 Created the ConfigDirector client of process 13547. Ready: true
 ```
 
-A client initialized before Puma forks, in an initializer for instance, would be copied into each worker without its
-connection, so its values would stop changing there. A later version of the SDK will restart such a client in each
-worker by itself; the sample does not depend on that, because it creates no client before the fork.
+A client initialized before Puma forks its workers, in an initializer for instance, is copied into each worker and
+starts its own connection there by itself, so its values keep changing in every worker. The sample does not depend
+on that, because it creates no client before the fork.
 
 `config/application.rb` loads `lib/` with `autoload_lib_once`, so Rails does not reload the module when code
 changes in development. A reloaded module would forget its client and create a second one.

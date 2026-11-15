@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "weakref"
 require_relative "../support/recording_logger"
 require_relative "../support/sdk_server_serving_the_sample_configs"
 
@@ -85,5 +86,39 @@ RSpec.describe "A client's lifecycle" do
 
     expect { client.init }.to raise_error(ConfigDirector::ConfigDirectorValidationError)
     expect(client.ready?).to be(false)
+  end
+
+  it "is held by nothing in the SDK when it is offline, so its logger can be garbage collected without a close" do
+    logger_of_an_offline_client = Thread.new do
+      logger_of_the_client = RecordingLogger.new
+      ConfigDirector.create_client(
+        connection: ConfigDirector::ConnectionOptions.new(mode: "offline"), logger: logger_of_the_client
+      ).init
+
+      WeakRef.new(logger_of_the_client)
+    end.value
+
+    GC.start
+
+    expect(logger_of_an_offline_client.weakref_alive?).to be_falsy
+  end
+
+  it "is held by nothing in the SDK once it is closed, so its logger can be garbage collected",
+     unless: Gem::Version.new(RUBY_VERSION) < Gem::Version.new("4.0") do
+    url = sdk_server.url
+    logger_of_a_closed_client = Thread.new do
+      logger_of_the_client = RecordingLogger.new
+      closed_client = ConfigDirector.create_client(
+        "server-sdk-key", connection: ConfigDirector::ConnectionOptions.new(url: url), logger: logger_of_the_client
+      )
+      closed_client.init
+      closed_client.close
+
+      WeakRef.new(logger_of_the_client)
+    end.value
+
+    GC.start
+
+    expect(logger_of_a_closed_client.weakref_alive?).to be_falsy
   end
 end

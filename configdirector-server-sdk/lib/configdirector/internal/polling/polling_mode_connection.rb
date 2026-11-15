@@ -38,6 +38,12 @@ module ConfigDirector
           OPENING_BY_WHAT_FOLLOWS_THE_FIRST_POLL.fetch(what_follows_the_first_poll)
         end
 
+        def restart_in_a_forked_process(report_unrecoverable_error:, &deliver_payload)
+          @transport.restart_in_a_forked_process(
+            report_unrecoverable_error: report_unrecoverable_error
+          ) { |payload_text| deliver_payload.call(Connection::ServerSdkPayloadParser.payload_in(payload_text)) }
+        end
+
         def close
           @transport.close
         end

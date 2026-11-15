@@ -231,12 +231,21 @@ module ConfigDirector
         include Connection::_Connection
         extend Connection::_ConnectionOfAMode
 
-        @transport: StreamingTransport
+        @endpoint: StreamEndpoint
+        @logger: _Logger & Object
         @log: Logging::ClientLog
+        @transport: StreamingTransport
 
-        def initialize: (StreamingTransport transport, Logging::ClientLog log) -> void
+        def initialize: (StreamEndpoint endpoint, _Logger & Object logger) -> void
 
         private
+
+        def transport_of_a_new_session: () -> StreamingTransport
+
+        def open_a_stream: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(Connection::ServerSdkPayload payload) -> void deliver_payload
+        ) -> void
 
         def payload_or_nothing_in: (String event_data) -> Connection::ServerSdkPayload?
       end

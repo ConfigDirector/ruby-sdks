@@ -5,6 +5,10 @@ require "monitor"
 module ConfigDirector
   # The ConfigDirector SDK client. Create one with {ConfigDirector.create_client}, call {#init} when your
   # application starts and {#close} when it shuts down. A client can be shared between threads.
+  #
+  # When the process forks after {#init}, as Puma does for its workers in cluster mode, the client starts its
+  # own connection in the forked process by itself. There it serves the values it had at the fork at once, and
+  # its handlers and watches keep being called, on a thread of the SDK.
   class ConfigDirectorClient
     WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
       "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
@@ -18,7 +22,6 @@ module ConfigDirector
 
     # @api private
     def initialize(connection:, connection_options:, metadata:, logger:, hooks:)
-      @connection = connection
       @mode = connection_options.mode
       @timeout = connection_options.timeout.to_f
       @log = Internal::Logging::ClientLog.new(logger)
@@ -28,6 +31,7 @@ module ConfigDirector
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
       @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, @log)
+      @client_connection = client_connection_over(connection)
     end
 
     # Connects to ConfigDirector and makes the client ready. It waits, up to the connection timeout, for the
@@ -224,7 +228,7 @@ module ConfigDirector
         @serving_state.close
         @event_handlers.remove_all
         @watches.remove_all
-        @connection.close if @connection_opened
+        @client_connection.close if @connection_opened
       end
 
       @log.debug { "close has been called, the client is now closed" }
@@ -248,12 +252,18 @@ module ConfigDirector
       return :opened_before if @connection_opened
 
       @connection_opened = true
+      @client_connection.open
+    end
+
+    def client_connection_over(connection)
       intake = Internal::Client::ConnectionIntake.new(
         serving_state: @serving_state, event_handlers: @event_handlers, watches: @watches,
         config_reader: @config_reader, log: @log
       )
-      report_unrecoverable_error = ->(connection_error) { intake.take_in_unrecoverable_error(connection_error) }
-      @connection.open(report_unrecoverable_error: report_unrecoverable_error) { |payload| intake.take_in(payload) }
+
+      Internal::Client::ClientConnection.new(
+        connection: connection, mode: @mode, serving_state: @serving_state, intake: intake, log: @log
+      )
     end
 
     def warn_that_no_values_arrived_in_time

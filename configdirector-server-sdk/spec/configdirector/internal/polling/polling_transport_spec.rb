@@ -85,6 +85,10 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     first_request
   end
 
+  def restart_in_a_forked_process(transport)
+    transport.restart_in_a_forked_process(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text)
+  end
+
   def next_pauses_before_the_next_poll(count)
     Array.new(count) { pauses_before_the_next_poll.pop(timeout: 5) }
   end
@@ -890,6 +894,52 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     transport = transport_to(sdk_server.url)
 
     expect { transport.close }.not_to raise_error
+  end
+
+  it "returns from a restart in a forked process before its poll is answered, and delivers on its polling thread" do
+    transport = transport_to(sdk_server.url)
+
+    restart_in_a_forked_process(transport)
+    sdk_server.next_poll_request.answer(status: 200, body: '{"timestamp":"2026-11-14T10:00:00.000Z","configs":{}}')
+
+    expect(payloads_delivered.pop(timeout: 5)).to eq('{"timestamp":"2026-11-14T10:00:00.000Z","configs":{}}')
+    expect(threads_that_delivered.pop(timeout: 0).name).to eq("configdirector-polling")
+  end
+
+  it "polls at once after a restart in a forked process, and again one polling interval after each poll" do
+    transport = transport_to(sdk_server.url)
+
+    restart_in_a_forked_process(transport)
+    first_request = sdk_server.next_poll_request
+    pauses_before_the_first_poll = pauses_before_the_next_poll.size
+    first_request.answer(status: 200, body: '{"timestamp":"2026-11-14T10:00:00.000Z","configs":{"first":{}}}')
+    sdk_server.next_poll_request.answer(
+      status: 200, body: '{"timestamp":"2026-11-14T10:01:00.000Z","configs":{"second":{}}}'
+    )
+
+    expect(pauses_before_the_first_poll).to eq(0)
+    expect(next_payloads_delivered(2)).to eq(
+      [
+        '{"timestamp":"2026-11-14T10:00:00.000Z","configs":{"first":{}}}',
+        '{"timestamp":"2026-11-14T10:01:00.000Z","configs":{"second":{}}}'
+      ]
+    )
+    expect(next_pauses_before_the_next_poll(2)).to eq([60, 60])
+  end
+
+  it "stops for good when the poll of a restart in a forked process is answered with a 401" do
+    transport = transport_to(sdk_server.url)
+
+    restart_in_a_forked_process(transport)
+    sdk_server.next_poll_request.answer(status: 401, body: "Unauthorized")
+    error = unrecoverable_errors.pop(timeout: 5)
+    wait_until_no_sdk_thread_is_alive
+
+    expect(error.status).to eq(401)
+    expect(unrecoverable_errors).to be_empty
+    expect(sdk_threads_alive).to be_empty
+    expect(pauses_before_the_next_poll).to be_empty
+    expect(sdk_server.receives_a_request_to?("/server/polling/v1", within: 0.2)).to be(false)
   end
 
   it "lets its process exit while its polling thread is alive" do

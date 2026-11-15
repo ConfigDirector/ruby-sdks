@@ -170,12 +170,24 @@ module ConfigDirector
         @last_update_timestamp: String?
         @seconds_before_the_next_poll: seconds
 
-        def initialize: (endpoint: PollingEndpoint, timing: PollTiming, log: Logging::ClientLog) -> void
+        def initialize: (
+          endpoint: PollingEndpoint,
+          timing: PollTiming,
+          log: Logging::ClientLog,
+          ?last_update_timestamp: String?
+        ) -> void
 
         def poll: (
           ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
           ^(String payload_text) -> void deliver_payload_text
         ) -> Symbol
+
+        def session_of_a_forked_process: () -> PollingSession
+
+        def poll_at_once_and_on_every_interval: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(String payload_text) -> void deliver_payload_text
+        ) -> void
 
         def poll_on_every_interval: (
           ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
@@ -212,6 +224,10 @@ module ConfigDirector
           report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
         ) { (String payload_text) -> void } -> Symbol
 
+        def restart_in_a_forked_process: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> void
+
         def close: () -> void
 
         private
@@ -220,6 +236,8 @@ module ConfigDirector
           ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
           ^(String payload_text) -> void deliver_payload_text
         ) -> void
+
+        def start_the_polling_thread_unless_closed: () { () -> void } -> void
       end
 
       class PollingModeConnection

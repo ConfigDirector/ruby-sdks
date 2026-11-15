@@ -219,7 +219,6 @@ module ConfigDirector
   class ConfigDirectorClient
     WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE: Hash[String, String]
 
-    @connection: Internal::Connection::_Connection
     @mode: String
     @timeout: Float
     @log: Internal::Logging::ClientLog
@@ -229,6 +228,7 @@ module ConfigDirector
     @event_handlers: Internal::Client::EventHandlers
     @watches: Internal::Client::Watches
     @config_reader: Internal::Client::ConfigReader
+    @client_connection: Internal::Client::ClientConnection
 
     def initialize: (
       connection: Internal::Connection::_Connection,
@@ -267,6 +267,8 @@ module ConfigDirector
     def raise_if_closed: () -> void
 
     def open_the_connection_once: () -> Symbol
+
+    def client_connection_over: (Internal::Connection::_Connection connection) -> Internal::Client::ClientConnection
 
     def warn_that_no_values_arrived_in_time: () -> void
   end
