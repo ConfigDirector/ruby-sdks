@@ -7,7 +7,8 @@ module ConfigDirector
         WHAT_FOLLOWS_A_FORK_BY_MODE = {
           "streaming" => :restart_the_connection,
           "polling" => :restart_the_connection,
-          "offline" => :nothing_to_restart
+          "offline" => :nothing_to_restart,
+          "test" => :nothing_to_restart
         }.freeze
 
         private_constant :WHAT_FOLLOWS_A_FORK_BY_MODE

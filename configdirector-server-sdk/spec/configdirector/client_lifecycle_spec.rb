@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "configdirector/testing"
 require "weakref"
 require_relative "../support/recording_logger"
 require_relative "../support/sdk_server_serving_the_sample_configs"
@@ -101,6 +102,19 @@ RSpec.describe "A client's lifecycle" do
     GC.start
 
     expect(logger_of_an_offline_client.weakref_alive?).to be_falsy
+  end
+
+  it "is held by nothing in the SDK when a test client created it, so its logger can be garbage collected" do
+    logger_of_a_test_client = Thread.new do
+      logger_of_the_client = RecordingLogger.new
+      ConfigDirector::Testing.create_test_client({ "new-checkout" => true }, logger: logger_of_the_client).client.init
+
+      WeakRef.new(logger_of_the_client)
+    end.value
+
+    GC.start
+
+    expect(logger_of_a_test_client.weakref_alive?).to be_falsy
   end
 
   it "is held by nothing in the SDK once it is closed, so its logger can be garbage collected",

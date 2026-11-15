@@ -47,6 +47,8 @@ module ConfigDirector
           untyped server_sdk_key
         ) -> void
 
+        def self.reject_a_timeout_that_is_not_positive: (untyped timeout) -> void
+
         def self.reject_an_offline_timeout_that_is_not_a_number: (untyped timeout) -> void
 
         def self.reject_an_unusable_server_sdk_key: (untyped server_sdk_key) -> void
@@ -260,6 +262,12 @@ module ConfigDirector
           hooks: ClientHooks?
         ) -> ConfigDirectorClient
 
+        def self.test_client_serving: (
+          untyped values,
+          timeout: untyped,
+          logger: (_Logger & Object)?
+        ) -> Testing::TestClient
+
         def self.client_with_usable_options: (
           sdk_identity: Identity::SdkIdentity,
           server_sdk_key: String,
@@ -267,6 +275,12 @@ module ConfigDirector
           connection_options: ConnectionOptions,
           logger: _Logger & Object,
           hooks: ClientHooks
+        ) -> ConfigDirectorClient
+
+        def self.client_over_an_in_memory_connection: (
+          Connection::InMemoryConnection connection,
+          seconds timeout,
+          _Logger & Object logger
         ) -> ConfigDirectorClient
 
         def self.warn_of_a_polling_interval_below_the_minimum: (
@@ -399,6 +413,8 @@ module ConfigDirector
         def end_the_delivery_of_the_first_values: () -> void
 
         def close: () -> void
+
+        def expect_values_from_the_connection: () -> void
 
         def expect_no_values_from_the_connection: () -> void
 

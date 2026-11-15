@@ -39,10 +39,14 @@ module ConfigDirector
           reject_an_unusable_server_sdk_key(server_sdk_key)
           reject_offline_values_given_to(connection)
           reject_an_unusable_url(connection.url)
-          return if NumberOfSeconds.finite_and_positive?(connection.timeout)
+          reject_a_timeout_that_is_not_positive(connection.timeout)
+        end
+
+        def self.reject_a_timeout_that_is_not_positive(timeout)
+          return if NumberOfSeconds.finite_and_positive?(timeout)
 
           raise ConfigDirectorValidationError,
-                "Invalid timeout '#{connection.timeout}'. The timeout must be a positive number of seconds."
+                "Invalid timeout '#{timeout}'. The timeout must be a positive number of seconds."
         end
 
         def self.reject_an_offline_timeout_that_is_not_a_number(timeout)

@@ -18,11 +18,9 @@ ENV["SECRET_KEY_BASE"] = SecureRandom.hex(64)
 
 require_relative "../config/environment"
 require "rspec/rails"
+require "configdirector/testing"
 require_relative "support/five_standard_configs"
-require_relative "support/local_sdk_server"
-
-local_sdk_server = LocalSdkServer.new(FiveStandardConfigs::PAYLOAD_TEXT)
-ENV["CONFIGDIRECTOR_BASE_URL"] = local_sdk_server.url
+require_relative "support/test_client_in_place_of_the_application_client"
 
 RSpec.configure do |config|
   config.disable_monkey_patching!
@@ -31,12 +29,12 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand(config.seed)
 
+  config.include_context "with a test client in place of the client the application creates"
+
   config.after do
     ConfigDirectorClientPerProcess.instance_variable_get(:@client)&.close
     ConfigDirectorClientPerProcess.instance_variable_set(:@client, nil)
   end
-
-  config.after(:suite) { local_sdk_server.stop }
 
   config.after(:suite) do
     focused_or_pending_examples = RSpec.world.all_examples.select do |example|

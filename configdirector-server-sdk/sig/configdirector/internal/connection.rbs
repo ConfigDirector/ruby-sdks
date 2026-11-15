@@ -48,6 +48,8 @@ module ConfigDirector
 
         def self.of_definitions: (Hash[String, ConfigDefinition] configs) -> ServerSdkPayload
 
+        def self.delta_of_definitions: (Hash[String, ConfigDefinition] configs) -> ServerSdkPayload
+
         def configs_held_after: (Hash[String, ConfigDefinition] held_configs) -> Hash[String, ConfigDefinition]
 
         def segments_held_after: (Evaluation::segments held_segments) -> Evaluation::segments
@@ -195,6 +197,140 @@ module ConfigDirector
         private
 
         def deliver_the_offline_values: () { (ServerSdkPayload payload) -> void } -> void
+      end
+
+      type test_client_connection_state = :not_connected | :holding_an_initialization | :connected
+
+      type next_initialization = :serves_the_values | :fails | :is_held
+
+      class TestClientValues < Data
+        CONFIG_ID_PREFIX: String
+
+        attr_reader configs: Hash[String, ConfigDefinition]
+
+        def self.new: (configs: Hash[String, ConfigDefinition]) -> instance
+
+        def self.serving: (untyped values) -> TestClientValues
+
+        def self.rejecting_what_cannot_be_served: [T] () { () -> T } -> T
+
+        def with: (configs: Hash[String, ConfigDefinition]) -> TestClientValues
+
+        def merged_with: (TestClientValues values) -> TestClientValues
+
+        def without_the_value_of: (untyped given_key) -> TestClientValues
+
+        def full_payload: () -> ServerSdkPayload
+
+        def delta_payload: () -> ServerSdkPayload
+      end
+
+      type outcome_of_a_held_initialization = :awaited | :completed | :failed
+
+      class TestClientInitializations
+        @lock: Thread::Mutex
+        @timeout_seconds: seconds
+        @settled: Thread::ConditionVariable
+        @state: test_client_connection_state
+        @next_initialization: next_initialization
+        @held_until_monotonic_seconds: Float
+        @outcome_of_the_held_initialization: outcome_of_a_held_initialization
+
+        def initialize: (Thread::Mutex lock, seconds timeout_seconds) -> void
+
+        def connected?: () -> bool
+
+        def hold_the_next_initialization: () -> nil
+
+        def serve_the_values_at_the_next_initialization: () -> void
+
+        def begin_the_next_initialization: () -> next_initialization
+
+        def complete_initialization: () -> (:held_initialization_completed | :no_initialization_held)
+
+        def fail_initialization: () -> (:held_initialization_failed | :next_initialization_fails)
+
+        def settling_the_held_initialization: [T] (:completed | :failed outcome) { () -> T } -> T
+
+        def outcome_of_the_held_initialization: () -> (:completed | :failed | :ended_at_the_timeout)
+
+        private
+
+        def hold: () -> void
+
+        def outcome_at_the_timeout: () -> (:completed | :failed | :ended_at_the_timeout)
+
+        def cancel_a_hold_of_the_next_initialization: () -> void
+      end
+
+      class InMemoryConnection
+        REFUSAL_MESSAGE: String
+
+        @values: TestClientValues
+        @log: Logging::ClientLog
+        @lock: Thread::Mutex
+        @initializations: TestClientInitializations
+        @payloads_delivered_in_turn: PayloadsDeliveredInTurn
+        @deliver_payload: ^(ServerSdkPayload payload) -> void
+        @report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+
+        def initialize: (untyped values, timeout_seconds: seconds, logger: _Logger & Object) -> void
+
+        def set_value: (untyped config_key, untyped value) -> nil
+
+        def remove_value: (untyped given_key) -> nil
+
+        def replace_values: (untyped values) -> nil
+
+        def hold_initialization: () -> nil
+
+        def complete_initialization: () -> nil
+
+        def fail_initialization: () -> nil
+
+        def open: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (ServerSdkPayload payload) -> void } -> Symbol
+
+        def restart_in_a_forked_process: (**untyped) { (ServerSdkPayload payload) -> void } -> void
+
+        def close: () -> void
+
+        private
+
+        def begin_the_next_initialization: () -> next_initialization
+
+        def deliver_the_stored_values: () -> :values_awaited
+
+        def refuse_the_initialization: () -> :first_attempt_failed
+
+        def what_follows_the_held_initialization: () -> Symbol
+
+        def deliver_the_values_to_the_held_initialization: () -> nil
+
+        def report_the_refusal: () -> void
+
+        def add_if_connected: (ServerSdkPayload payload) -> void
+
+        def deliver_the_waiting_payloads: () -> nil
+      end
+
+      class PayloadsDeliveredInTurn
+        @lock: Thread::Mutex
+        @waiting_payloads: Array[ServerSdkPayload]
+        @delivering: bool
+
+        def initialize: () -> void
+
+        def add: (ServerSdkPayload payload) -> nil
+
+        def deliver_each: () { (ServerSdkPayload payload) -> void } -> nil
+
+        private
+
+        def delivery_of_the_waiting_payloads: () -> (:left_to_another_call | :taken_by_this_call)
+
+        def deliver_every_waiting_payload: (^(ServerSdkPayload payload) -> void deliver_payload) -> void
       end
 
       class PollingInterval < Data

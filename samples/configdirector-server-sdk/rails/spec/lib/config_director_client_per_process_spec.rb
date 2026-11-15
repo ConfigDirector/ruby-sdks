@@ -9,22 +9,7 @@ RSpec.describe ConfigDirectorClientPerProcess do
     ENV.update(variables_before)
   end
 
-  def allow_create_client_to_return_a_client_that_never_connects
-    client_that_never_connects = Class.new do
-      def init; end
-
-      def ready?
-        false
-      end
-
-      def close; end
-    end.new
-    allow(ConfigDirector).to receive(:create_client).and_return(client_that_never_connects)
-  end
-
   it "creates the client with the server SDK key, connection mode, timeout and base URL the environment names" do
-    allow_create_client_to_return_a_client_that_never_connects
-
     with_environment(
       "CONFIGDIRECTOR_SERVER_KEY" => "server-key-from-the-environment",
       "CONFIGDIRECTOR_MODE" => "polling",
@@ -45,8 +30,6 @@ RSpec.describe ConfigDirectorClientPerProcess do
   end
 
   it "creates the client with the sample key and the SDK's connection defaults when the environment names none" do
-    allow_create_client_to_return_a_client_that_never_connects
-
     with_environment(
       "CONFIGDIRECTOR_SERVER_KEY" => nil,
       "CONFIGDIRECTOR_MODE" => nil,
@@ -65,8 +48,6 @@ RSpec.describe ConfigDirectorClientPerProcess do
   end
 
   it "reads a variable set to an empty value as not set" do
-    allow_create_client_to_return_a_client_that_never_connects
-
     with_environment(
       "CONFIGDIRECTOR_SERVER_KEY" => "",
       "CONFIGDIRECTOR_MODE" => "",

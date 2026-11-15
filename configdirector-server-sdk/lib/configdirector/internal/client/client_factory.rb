@@ -28,6 +28,16 @@ module ConfigDirector
                                      metadata: metadata, connection_options: connection, logger: logger, hooks: hooks)
         end
 
+        def self.test_client_serving(values, timeout:, logger:)
+          timeout = ConnectionOptions.new.timeout if timeout.nil?
+          ConnectionOptionsValidation.reject_a_timeout_that_is_not_positive(timeout)
+          ClientOptionsValidation.reject_an_unusable_logger(logger)
+          logger ||= Logging::DefaultLogger.writing_from(nil)
+          connection = Connection::InMemoryConnection.new(values, timeout_seconds: timeout, logger: logger)
+
+          Testing::TestClient.new(client_over_an_in_memory_connection(connection, timeout, logger), connection)
+        end
+
         def self.client_with_usable_options(
           sdk_identity:, server_sdk_key:, metadata:, connection_options:, logger:, hooks:
         )
@@ -38,7 +48,15 @@ module ConfigDirector
               server_sdk_key: server_sdk_key, metadata: metadata, connection_options: connection_options,
               sdk_identity: sdk_identity, logger: logger
             ),
-            connection_options: connection_options, metadata: metadata, logger: logger, hooks: hooks
+            mode: connection_options.mode, timeout: connection_options.timeout, metadata: metadata, logger: logger,
+            hooks: hooks
+          )
+        end
+
+        def self.client_over_an_in_memory_connection(connection, timeout, logger)
+          ConfigDirectorClient.new(
+            connection: connection, mode: "test", timeout: timeout, metadata: Metadata.new, logger: logger,
+            hooks: ClientHooks.new
           )
         end
 
@@ -53,7 +71,8 @@ module ConfigDirector
           )
         end
 
-        private_class_method :client_with_usable_options, :warn_of_a_polling_interval_below_the_minimum
+        private_class_method :client_with_usable_options, :client_over_an_in_memory_connection,
+                             :warn_of_a_polling_interval_below_the_minimum
       end
     end
   end

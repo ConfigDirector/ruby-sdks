@@ -14,12 +14,14 @@ RSpec.describe "The ConfigDirector client of a process", type: :request do
         temporary-feature-flag permanent-kill-switch integer-config day-of-the-week-config json-value-config
       ]
     )
+    expect(ConfigDirector).to have_received(:create_client).once
   end
 
   it "is created once when the first two requests of a process arrive together" do
+    client_of_the_test_client = test_client.client
     threads_creating_a_client = Queue.new
     second_creation = Queue.new
-    allow(ConfigDirector).to receive(:create_client).and_wrap_original do |create_client, *arguments, **options|
+    allow(ConfigDirector).to receive(:create_client) do
       first_creation = threads_creating_a_client.empty?
       threads_creating_a_client << Thread.current
       if first_creation
@@ -27,7 +29,7 @@ RSpec.describe "The ConfigDirector client of a process", type: :request do
       else
         second_creation << :arrived
       end
-      create_client.call(*arguments, **options)
+      client_of_the_test_client
     end
 
     statuses = Array.new(2) do

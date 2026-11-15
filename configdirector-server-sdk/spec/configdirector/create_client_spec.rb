@@ -193,6 +193,16 @@ RSpec.describe "Creating a client" do
       .to raise_error(ConfigDirector::ConfigDirectorValidationError)
   end
 
+  it "rejects the mode of a test client's client, naming the three connection modes" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "test")
+
+    expect { ConfigDirector.create_client("server-sdk-key", connection: connection, logger: logger) }
+      .to raise_error(
+        ConfigDirector::ConfigDirectorValidationError,
+        'Unknown connection mode "test". Expected one of: "streaming", "polling", "offline".'
+      )
+  end
+
   it "rejects a connection mode given as a Symbol" do
     connection = ConfigDirector::ConnectionOptions.new(mode: :polling)
 

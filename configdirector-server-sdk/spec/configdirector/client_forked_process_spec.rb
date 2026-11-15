@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "configdirector/testing"
 require "rbconfig"
 require "timeout"
 require_relative "../support/elapsed_seconds"
@@ -380,6 +381,26 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
       ForkedProcess.reporting do
         [
           client.ready?, client.get_value("max-items", 0), processes_that_started_a_thread.count(Process.pid),
+          (logger.messages_at(:debug) + logger.messages_at(:error)).grep(/forked process/)
+        ]
+      end
+    end
+
+    expect(forked_process.report).to eq([true, 20, 0, []])
+  end
+
+  it "serves a test client's values in a forked process, starting no thread there and logging nothing" do
+    test_client = ConfigDirector::Testing.create_test_client({ "max-items" => 20 }, logger: logger)
+    clients_created << test_client.client
+    test_client.client.init
+    processes_that_started_a_thread = []
+    thread_starts = TracePoint.new(:thread_begin) { processes_that_started_a_thread << Process.pid }
+
+    forked_process = thread_starts.enable(target_thread: nil) do
+      ForkedProcess.reporting do
+        [
+          test_client.client.ready?, test_client.client.get_value("max-items", 0),
+          processes_that_started_a_thread.count(Process.pid),
           (logger.messages_at(:debug) + logger.messages_at(:error)).grep(/forked process/)
         ]
       end

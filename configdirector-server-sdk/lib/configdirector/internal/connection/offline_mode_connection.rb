@@ -45,10 +45,7 @@ module ConfigDirector
         end
 
         def self.payload_serving_the_given_values(values)
-          unless values.is_a?(Hash)
-            raise ConfigDirectorValidationError, "Invalid 'values' option of class #{values.class}. It must be a Hash."
-          end
-
+          Value::NativeValues.reject_values_of_another_class(values)
           payload_serving(values)
         rescue Value::UnservableValue => e
           raise ConfigDirectorValidationError, "The offline values could not be loaded. #{e.message}"

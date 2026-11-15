@@ -154,3 +154,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   once, and handlers and watches registered before the fork keep firing there. The parent's connection is not
   affected. A client that was never initialized, was closed, was refused by ConfigDirector, or is offline does
   nothing at a fork.
+- `require "configdirector/testing"` loads `ConfigDirector::Testing.create_test_client(values, timeout:, logger:)`,
+  which returns a `ConfigDirector::Testing::TestClient` for testing code that reads configs. Its `client` is the
+  SDK's real client over an in-memory connection the test controls: it needs no server SDK key, opens no network
+  connection, starts no thread and sends nothing. The values follow the offline typing rule, and every context
+  receives the same value as a `"found-match"` with no value ID and no variation, from a config whose ID is
+  `test-config:` followed by the key. `timeout` is how long a held `init` waits, 3 seconds unless given.
+  `create_test_client`, `set_value` and `replace_values` raise `ConfigDirectorValidationError` for values the SDK
+  cannot serve, changing nothing, and `create_test_client` raises it too for a timeout that is not a positive
+  number or a logger without the four methods.
+- `TestClient#set_value(key, value)` delivers an update that carries only that key, and `remove_value(key)` and
+  `replace_values(values)` deliver a full update, before they return, with the handlers and watches run on the
+  calling thread; a change made while the client is not connected reaches it with the next `init`. A change made
+  from inside a handler or a watch is delivered right after the one being handled. `replace_values` also cancels a
+  hold or a failure that no `init` has used.
+- `TestClient#hold_initialization` makes the next `init` wait until another thread calls `complete_initialization`,
+  which delivers the stored values on its own thread, or `fail_initialization`, or until the timeout, when `init`
+  logs the timeout warning and returns. `fail_initialization` fails a held `init`, or makes the next one fail: one
+  error is logged and the `connection_error` handlers receive a `ConfigDirectorConnectionError` of status 401, each
+  time, and then the failed `init` returns, at once when nothing held it. A client that was ready keeps serving its
+  values through a held or failed `init`.

@@ -234,7 +234,8 @@ module ConfigDirector
 
     def initialize: (
       connection: Internal::Connection::_Connection,
-      connection_options: ConnectionOptions,
+      mode: String,
+      timeout: seconds,
       metadata: Metadata,
       logger: _Logger & Object,
       hooks: ClientHooks

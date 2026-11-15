@@ -7,7 +7,8 @@ module ConfigDirector
         CONNECTION_AT_A_LATER_INIT_BY_MODE = {
           "streaming" => :left_open,
           "polling" => :left_open,
-          "offline" => :opened_again
+          "offline" => :opened_again,
+          "test" => :opened_again
         }.freeze
 
         private_constant :CONNECTION_AT_A_LATER_INIT_BY_MODE
@@ -55,6 +56,7 @@ module ConfigDirector
 
         def open_the_connection
           @connection_opened = true
+          @serving_state.expect_values_from_the_connection
           Process.singleton_class.prepend(RestartInForkedProcesses)
           case what_follows_a_fork
           when :nothing_to_restart then nil

@@ -56,6 +56,10 @@ module ConfigDirector
           end
         end
 
+        def expect_values_from_the_connection
+          @lock.synchronize { @connection_failed_unrecoverably = false }
+        end
+
         def expect_no_values_from_the_connection
           @lock.synchronize do
             @connection_failed_unrecoverably = true

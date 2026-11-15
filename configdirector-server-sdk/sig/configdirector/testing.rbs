@@ -1,0 +1,29 @@
+module ConfigDirector
+  module Testing
+    def self.create_test_client: (
+      ?Hash[String | Symbol, untyped]? values,
+      ?timeout: seconds?,
+      ?logger: (_Logger & Object)?
+    ) -> TestClient
+
+    class TestClient
+      @connection: Internal::Connection::InMemoryConnection
+
+      attr_reader client: ConfigDirectorClient
+
+      def initialize: (ConfigDirectorClient client, Internal::Connection::InMemoryConnection connection) -> void
+
+      def set_value: (String | Symbol config_key, untyped value) -> nil
+
+      def remove_value: (String | Symbol config_key) -> nil
+
+      def replace_values: (Hash[String | Symbol, untyped] values) -> nil
+
+      def hold_initialization: () -> nil
+
+      def complete_initialization: () -> nil
+
+      def fail_initialization: () -> nil
+    end
+  end
+end

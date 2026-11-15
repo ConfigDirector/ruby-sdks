@@ -23,7 +23,7 @@ RSpec.describe "A process that loads the application" do
   end
 
   it "closes the client it created when it exits" do
-    output, errors, = run_rails_runner(<<~RUBY)
+    output, errors, = run_rails_runner(<<~RUBY, "CONFIGDIRECTOR_MODE" => "offline")
       client = nil
       at_exit { print client.closed? }
       client = ConfigDirectorClientPerProcess.client

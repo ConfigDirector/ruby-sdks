@@ -14,6 +14,10 @@ module ConfigDirector
           new(delta: false, configs: configs, segments: {}, unreadable_configs: {}, unreadable_segments: {})
         end
 
+        def self.delta_of_definitions(configs)
+          new(delta: true, configs: configs, segments: {}, unreadable_configs: {}, unreadable_segments: {})
+        end
+
         def configs_held_after(held_configs)
           delta ? held_configs.except(*unreadable_configs.keys).merge(configs) : configs
         end

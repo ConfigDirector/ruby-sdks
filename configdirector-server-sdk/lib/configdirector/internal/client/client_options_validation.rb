@@ -46,7 +46,7 @@ module ConfigDirector
         end
 
         private_constant :EVENT_QUEUE_LIMITS, :LOGGER_METHODS
-        private_class_method :reject_an_option_of_another_class, :reject_an_unusable_logger, :reject_unusable_telemetry
+        private_class_method :reject_an_option_of_another_class, :reject_unusable_telemetry
       end
     end
   end

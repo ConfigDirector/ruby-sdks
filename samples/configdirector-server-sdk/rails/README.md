@@ -160,11 +160,34 @@ The suite calls the application in process, so no web server runs. The request s
 [`spec/processes_spec.rb`](spec/processes_spec.rb) runs `bin/rails runner` to check what a process does when it
 loads the application without a key and when it exits.
 
-The tests read through the client the application creates, and never connect to ConfigDirector.
-[`spec/rails_helper.rb`](spec/rails_helper.rb) starts a local HTTP server that answers a stream or a poll as
-ConfigDirector does, with the five configs of [`spec/support/five_standard_configs.rb`](spec/support/five_standard_configs.rb),
-and points `CONFIGDIRECTOR_BASE_URL` at it. Once the SDK ships its test client, the tests will read through a test
-client instead.
+The tests never connect to ConfigDirector. They read through the SDK's test client: a real client whose values the
+test sets, with no network connection and no thread. Before each example,
+[`spec/support/test_client_in_place_of_the_application_client.rb`](spec/support/test_client_in_place_of_the_application_client.rb)
+creates a test client that serves the five configs of
+[`spec/support/five_standard_configs.rb`](spec/support/five_standard_configs.rb), and makes `ConfigDirector.create_client`
+return its client:
+
+```ruby
+let(:test_client) { ConfigDirector::Testing.create_test_client(FiveStandardConfigs::VALUES, logger: Rails.logger) }
+
+before { allow(ConfigDirector).to receive(:create_client).and_return(test_client.client) }
+```
+
+The first request of an example then goes through `ConfigDirectorClientPerProcess` as it does in production: it
+creates the client, which is the test client's, and calls `init`, which serves the five values at once. A test changes
+a value between two requests with `set_value`, and the next request reads the new value:
+
+```ruby
+get "/configs"
+test_client.set_value("integer-config", 7)
+
+get "/configs"
+
+expect(response.parsed_body["integer-config"]).to eq(7)
+```
+
+The example in [`spec/processes_spec.rb`](spec/processes_spec.rb) that creates a client runs `bin/rails runner` in
+offline mode, so that process does not connect to ConfigDirector either.
 
 To see the context each config was evaluated for, a test registers a `config_evaluated` handler on the process's
 client before it sends the request:

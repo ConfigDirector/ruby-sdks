@@ -15,15 +15,16 @@ module ConfigDirector
                      "Configs will return the in-code default value until the connection succeeds.",
       "polling" => "Since the client was configured without streaming, configs may not update and always " \
                    "return the in-code default value.",
-      "offline" => "The offline values were not delivered, so configs return the in-code default value."
+      "offline" => "The offline values were not delivered, so configs return the in-code default value.",
+      "test" => "Configs return the in-code default value until values arrive."
     }.freeze
 
     private_constant :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
 
     # @api private
-    def initialize(connection:, connection_options:, metadata:, logger:, hooks:)
-      @mode = connection_options.mode
-      @timeout = connection_options.timeout.to_f
+    def initialize(connection:, mode:, timeout:, metadata:, logger:, hooks:)
+      @mode = mode
+      @timeout = timeout.to_f
       @log = Internal::Logging::ClientLog.new(logger)
       @connection_lifecycle = Monitor.new
       @serving_state = Internal::Client::ServingState.new(metadata)
@@ -183,13 +184,15 @@ module ConfigDirector
     #   {#evaluate} or a watch evaluates a config, on the thread that read, before the read returns.
     # - +:connection_error+ handlers are called with a {ConnectionErrorEvent} when ConfigDirector refuses the
     #   connection, for example because it does not know the server SDK key, and the client will not try
-    #   again. They are called at most once for a client.
+    #   again. They are called at most once for a client, except for the client of a {Testing::TestClient},
+    #   whose every failed +init+ calls them.
     #
     # +client_ready+, +configs_updated+ and +connection_error+ handlers run on the thread that received
     # from ConfigDirector. In streaming mode that is a thread of the SDK. In polling mode it is the thread
     # that called {#init} for the first request, and a thread of the SDK for every later one. In offline
-    # mode it is the thread that called {#init}. Handlers may read from the client, and an error a handler
-    # raises is logged and ignored.
+    # mode it is the thread that called {#init}. For the client of a {Testing::TestClient}, it is the thread
+    # that called {#init} or the method of the test client that delivered the values. Handlers may read from
+    # the client, and an error a handler raises is logged and ignored.
     #
     # @example
     #   client.on(:configs_updated) { |event| puts "Updated: #{event.keys.join(", ")}" }

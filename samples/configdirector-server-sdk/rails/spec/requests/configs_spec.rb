@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 RSpec.describe "GET /configs", type: :request do
-  it "returns the value each of the five configs serves to the context in the query string" do
+  it "returns the value each of the five configs serves" do
     reasons_by_config_key = {}
     ConfigDirectorClientPerProcess.client.on(:config_evaluated) do |event|
       reasons_by_config_key[event.evaluation.key] = event.evaluation.reason
     end
 
-    get "/configs?id=user-123&plan=pro"
+    get "/configs?id=user-123"
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body).to eq(
@@ -38,5 +38,14 @@ RSpec.describe "GET /configs", type: :request do
       id: "user-123", kind: "device", name: "Ada", traits: { "plan" => "pro", "region" => "eu" }, anonymous: true
     )
     expect(evaluated_contexts).to eq([ada, ada, ada, ada, ada])
+  end
+
+  it "returns the new value of a config that changes after the first request" do
+    get "/configs"
+    test_client.set_value("integer-config", 7)
+
+    get "/configs"
+
+    expect(response.parsed_body["integer-config"]).to eq(7)
   end
 end
