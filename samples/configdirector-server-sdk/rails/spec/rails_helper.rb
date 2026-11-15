@@ -11,7 +11,10 @@ Warning[:deprecated] = true
 Warning[:performance] = true
 Warning.extend(RaiseOnRubyWarning)
 
+require "securerandom"
+
 ENV["RAILS_ENV"] = "test"
+ENV["SECRET_KEY_BASE"] = SecureRandom.hex(64)
 
 require_relative "../config/environment"
 require "rspec/rails"
