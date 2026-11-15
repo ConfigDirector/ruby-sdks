@@ -20,6 +20,8 @@ module ConfigDirector
         end
 
         def restart_in_a_forked_process
+          return if @client_connections.empty?
+
           Thread.new { restart_each_in_a_forked_process }.join
           nil
         rescue ThreadError

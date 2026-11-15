@@ -35,6 +35,9 @@ module ConfigDirector
   class ConfigDirectorValidationError < ConfigDirectorError
   end
 
+  class ConfigDirectorInitializationError < ConfigDirectorError
+  end
+
   class ConfigDirectorConnectionError < ConfigDirectorError
     attr_reader status: Integer?
 
@@ -57,16 +60,16 @@ module ConfigDirector
     attr_reader polling_interval: seconds
     attr_reader timeout: seconds
     attr_reader url: String
-    attr_reader file: String?
-    attr_reader values: Hash[String, untyped]?
+    attr_reader file: (String | Pathname)?
+    attr_reader values: Hash[String | Symbol, untyped]?
 
     def initialize: (
       ?mode: String,
       ?polling_interval: seconds,
       ?timeout: seconds,
       ?url: String,
-      ?file: String?,
-      ?values: Hash[String, untyped]?
+      ?file: (String | Pathname)?,
+      ?values: Hash[String | Symbol, untyped]?
     ) -> void
   end
 
@@ -223,7 +226,6 @@ module ConfigDirector
     @timeout: Float
     @log: Internal::Logging::ClientLog
     @connection_lifecycle: Monitor
-    @connection_opened: bool
     @serving_state: Internal::Client::ServingState
     @event_handlers: Internal::Client::EventHandlers
     @watches: Internal::Client::Watches
@@ -265,8 +267,6 @@ module ConfigDirector
     private
 
     def raise_if_closed: () -> void
-
-    def open_the_connection_once: () -> Symbol
 
     def client_connection_over: (Internal::Connection::_Connection connection) -> Internal::Client::ClientConnection
 

@@ -11,13 +11,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - `ConfigDirector.create_client(server_sdk_key, metadata:, connection:, logger:, log_level:, telemetry:, hooks:)`
   creates a `ConfigDirector::ConfigDirectorClient` without making a network call. It raises
-  `ConfigDirectorValidationError` when the server SDK key is missing or blank or `connection.url` is not an
-  http or https URL, both outside offline mode only; when `connection.mode` is not `"streaming"`,
-  `"polling"` or `"offline"`; when `connection.timeout` or `telemetry.flush_interval` is not a positive
-  number; when `connection.polling_interval` is not a number; when `telemetry.event_queue_limit` is not a
-  whole number from 100 to 100,000; when an option is not an object of its option class; when the `logger`
-  lacks `debug`, `info`, `warn` or `error`; or when `log_level` is not a level of Ruby's `Logger` and no
-  `logger` is given.
+  `ConfigDirectorValidationError` when the server SDK key is missing or blank, `connection.url` is not an
+  http or https URL, `connection.timeout` is not a positive number, or `connection.file` or `connection.values`
+  is given, all outside offline mode only; when `connection.mode` is not `"streaming"`, `"polling"` or
+  `"offline"`; when `telemetry.flush_interval` is not a positive number; when `connection.timeout` or
+  `connection.polling_interval` is not a number; when `telemetry.event_queue_limit` is not a whole number from
+  100 to 100,000; when an option is not an object of its option class; when the `logger` lacks `debug`, `info`,
+  `warn` or `error`; or when `log_level` is not a level of Ruby's `Logger` and no `logger` is given.
 - The option objects `Metadata` (`app_name`, `app_version`), `ConnectionOptions` (`mode`, `polling_interval`,
   `timeout`, `url`, `file`, `values`), `TelemetryOptions` (`event_queue_limit`, `flush_interval`) and
   `ClientHooks` (`client_ready`, `configs_updated`, `config_evaluated`, `connection_error`). Every duration is in
@@ -26,9 +26,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The client connects to ConfigDirector at `connection.url`. In `"streaming"` mode, the default, it keeps a
   connection open and receives a new value as soon as it changes in ConfigDirector, and it reconnects by itself
   when the connection drops. In `"polling"` mode it asks for new values every `polling_interval`, and
-  `connection.timeout` is also how long each of those requests may take. In `"offline"` mode it makes no network
-  call and is ready after `init`; for now an offline client serves no values, so every read returns its in-code
-  default value with the reason `"config-state-missing"`.
+  `connection.timeout` is also how long each of those requests may take.
+- In `"offline"` mode the client needs no server SDK key, never connects to ConfigDirector and sends nothing,
+  and serves one value per config key to every context, without applying targeting rules. The values are given
+  inline as `connection.values`, such as `{ "new-checkout": true, "max-items": 20 }`, or as `connection.file`, the
+  path of a JSON object of config key to value, given as a String or a Pathname and resolved against the working
+  directory. With neither, every read returns its in-code default value with the reason
+  `"config-state-missing"`. `connection.timeout` has no effect, and zero or less is accepted.
+- The config type of an offline value follows from its class: `true` or `false` is a boolean, an Integer an
+  integer, a Float a float written as plain decimal text (`25.0` as `25`, `1.0e-7` as `0.0000001`), a String a
+  string, and a Hash or an Array a JSON config in compact JSON, which can hold `nil`. A key is a String or a
+  Symbol, and a Symbol, in the values or in a Hash inside a JSON value, is read as its name. A String in another
+  encoding is converted to UTF-8, and a binary String whose bytes are UTF-8 text is read as that text. A served
+  offline value has the reason `"found-match"`, no value ID and no variation, and its config ID is `offline:`
+  followed by the key.
+- `create_client` raises `ConfigDirectorValidationError` when `connection.file` and `connection.values` are both
+  given, when `connection.values` is not a Hash, or when `connection.file` is neither a String nor a Pathname. It
+  raises it too when the values hold a key that is blank, of another class, not UTF-8 text, or given twice, such
+  as a String and a Symbol with the same name, or a value the SDK cannot serve: `nil`, a Float that is not finite,
+  a String that is not UTF-8 text, or an object of another class, such as a Symbol or a Time. A JSON value can
+  hold `nil`, and the same rules apply to every value and Hash key inside it. A JSON value nested deeper than 100
+  levels is rejected.
+- In offline mode `init` reads the file again each time it is called, and reads never read it. Each `init` calls
+  the `configs_updated` handlers with every key the values hold and, in `removed_keys`, the keys the file no
+  longer holds, then their watches, and the `client_ready` handlers the first time the client becomes ready. An
+  `init` that a handler calls during an `init` returns at once. An offline client starts no thread, and in a
+  forked process it serves its values with nothing to restart.
+- `ConfigDirectorInitializationError` extends `ConfigDirectorError`. In offline mode `init` raises it, and logs
+  nothing, when the file cannot be read, is not UTF-8 text, is not valid JSON, is not a JSON object, or holds a
+  value the SDK cannot serve. A client that was not ready stays not ready, and one that was ready keeps serving
+  the values it had and stays ready.
 - `init` connects and makes the client ready. It waits, up to `connection.timeout`, for the first values and for
   their handlers and watches to finish. When no values arrive in time it logs a warning and returns, and the
   client keeps trying. It never raises because the connection failed. `ready?` says whether the client has

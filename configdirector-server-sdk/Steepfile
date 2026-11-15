@@ -2,7 +2,7 @@
 
 target :lib do
   signature "sig", "sig_missing_from_rbs"
-  library "json", "logger", "monitor", "net-http", "securerandom", "time", "uri"
+  library "json", "logger", "monitor", "net-http", "pathname", "securerandom", "time", "uri"
   check "lib"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end

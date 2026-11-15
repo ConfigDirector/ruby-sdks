@@ -141,6 +141,51 @@ RSpec.describe "Creating a client" do
     expect(client).to be_a(ConfigDirector::ConfigDirectorClient)
   end
 
+  it "rejects offline values given both as a file and as values" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline", file: "flags.json", values: { "beta" => true })
+
+    expect { ConfigDirector.create_client(connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError, "An offline connection takes either 'file' or 'values', not both."
+    )
+  end
+
+  it "rejects offline values in polling mode" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "polling", values: { "beta" => true })
+
+    expect { ConfigDirector.create_client("server-sdk-key", connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "The connection options 'file' and 'values' apply only when the connection mode is 'offline', " \
+      "but the mode is 'polling'."
+    )
+  end
+
+  it "rejects an offline values file in streaming mode" do
+    connection = ConfigDirector::ConnectionOptions.new(file: "flags.json")
+
+    expect { ConfigDirector.create_client("server-sdk-key", connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "The connection options 'file' and 'values' apply only when the connection mode is 'offline', " \
+      "but the mode is 'streaming'."
+    )
+  end
+
+  it "rejects offline values that are not a Hash" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline", values: [["beta", true]])
+
+    expect { ConfigDirector.create_client(connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError, "Invalid 'values' option of class Array. It must be a Hash."
+    )
+  end
+
+  it "rejects an offline values file that is neither a String nor a Pathname" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline", file: File)
+
+    expect { ConfigDirector.create_client(connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "Invalid 'file' option of class Class. It must be a String or a Pathname."
+    )
+  end
+
   it "rejects an unknown connection mode" do
     connection = ConfigDirector::ConnectionOptions.new(mode: "push")
 
@@ -218,11 +263,26 @@ RSpec.describe "Creating a client" do
       .to raise_error(ConfigDirector::ConfigDirectorValidationError)
   end
 
-  it "rejects a timeout of 0 in offline mode" do
+  it "accepts a timeout of 0 in offline mode" do
     connection = ConfigDirector::ConnectionOptions.new(mode: "offline", timeout: 0)
 
-    expect { ConfigDirector.create_client(connection: connection, logger: logger) }
-      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+    expect(ConfigDirector.create_client(connection: connection, logger: logger))
+      .to be_a(ConfigDirector::ConfigDirectorClient)
+  end
+
+  it "accepts a negative timeout in offline mode" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline", timeout: -1)
+
+    expect(ConfigDirector.create_client(connection: connection, logger: logger))
+      .to be_a(ConfigDirector::ConfigDirectorClient)
+  end
+
+  it "rejects a timeout that is not a number in offline mode" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline", timeout: "3")
+
+    expect { ConfigDirector.create_client(connection: connection, logger: logger) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError, "Invalid timeout '3'. The timeout must be a number of seconds."
+    )
   end
 
   it "rejects an event queue limit of 50" do

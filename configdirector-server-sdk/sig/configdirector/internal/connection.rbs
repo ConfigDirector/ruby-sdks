@@ -46,6 +46,8 @@ module ConfigDirector
 
         def self.without_definitions: () -> ServerSdkPayload
 
+        def self.of_definitions: (Hash[String, ConfigDefinition] configs) -> ServerSdkPayload
+
         def configs_held_after: (Hash[String, ConfigDefinition] held_configs) -> Hash[String, ConfigDefinition]
 
         def segments_held_after: (Evaluation::segments held_segments) -> Evaluation::segments
@@ -67,6 +69,11 @@ module ConfigDirector
           targeting_rules: Evaluation::TargetingRules,
           variations: Array[Variation]
         ) -> instance
+
+        def self.serving_each_value_to_every_context: (
+          Hash[untyped, untyped] values,
+          String id_prefix
+        ) -> Hash[String, ConfigDefinition]
 
         def uses_any_segment_of?: (Array[String] segment_ids) -> bool
 
@@ -147,14 +154,47 @@ module ConfigDirector
         def self.segment_defined_by: (untyped wire_segment) -> Evaluation::Segment
       end
 
+      module OfflineValuesFile
+        def self.values_in: (String | Pathname path) -> Hash[String, untyped]
+
+        def self.text_of: (String | Pathname path) -> String
+
+        def self.document_in: (String text, String | Pathname path) -> untyped
+
+        def self.description_of: (untyped document) -> String
+      end
+
       class OfflineModeConnection
-        def self.for_a_client_with: (**untyped) -> OfflineModeConnection
+        CONFIG_ID_PREFIX: String
+
+        @payload_of_the_offline_values: ^() -> ServerSdkPayload
+        @delivering_the_offline_values: bool
+
+        def self.for_a_client_with: (connection_options: ConnectionOptions, **untyped) -> OfflineModeConnection
+
+        def self.offline_source_given_by: (untyped file, untyped values) -> (:no_values | :values | :file | :file_and_values)
+
+        def self.serving_the_payload: (ServerSdkPayload payload) -> OfflineModeConnection
+
+        def self.reading_the_file: (untyped file) -> OfflineModeConnection
+
+        def self.payload_serving_the_given_values: (untyped values) -> ServerSdkPayload
+
+        def self.payload_serving_the_values_in_the_file: (String | Pathname file) -> ServerSdkPayload
+
+        def self.payload_serving: (Hash[untyped, untyped] values) -> ServerSdkPayload
+
+        def initialize: (^() -> ServerSdkPayload payload_of_the_offline_values) -> void
 
         def open: (**untyped) { (ServerSdkPayload payload) -> void } -> Symbol
 
         def restart_in_a_forked_process: (**untyped) { (ServerSdkPayload payload) -> void } -> void
 
         def close: () -> void
+
+        private
+
+        def deliver_the_offline_values: () { (ServerSdkPayload payload) -> void } -> void
       end
 
       class PollingInterval < Data

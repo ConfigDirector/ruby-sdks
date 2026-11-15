@@ -26,7 +26,6 @@ module ConfigDirector
       @timeout = connection_options.timeout.to_f
       @log = Internal::Logging::ClientLog.new(logger)
       @connection_lifecycle = Monitor.new
-      @connection_opened = false
       @serving_state = Internal::Client::ServingState.new(metadata)
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
@@ -48,15 +47,20 @@ module ConfigDirector
     # - In polling mode, when the first request for values fails for another reason, it logs an error and
     #   returns at once, and the client asks again after the polling interval.
     #
-    # In offline mode it makes no network call and the client is ready when it returns.
+    # In offline mode it makes no network call. It reads the offline values file again each time it is called,
+    # and the client is ready when it returns. It calls the +configs_updated+ handlers with every key the values
+    # hold and the watches each time, as it does when values arrive from ConfigDirector.
     #
     # @return [void]
     # @raise [ConfigDirectorValidationError] when the client is closed
+    # @raise [ConfigDirectorInitializationError] in offline mode, when the offline values file cannot be read,
+    #   is not UTF-8 text, is not valid JSON, is not a JSON object, or holds a value the SDK cannot serve. A
+    #   client that was not ready stays not ready, and one that was ready keeps serving the values it had.
     def init
       give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @timeout
       connection_opening = @connection_lifecycle.synchronize do
         raise_if_closed
-        open_the_connection_once
+        @client_connection.open
       end
 
       case connection_opening
@@ -228,7 +232,7 @@ module ConfigDirector
         @serving_state.close
         @event_handlers.remove_all
         @watches.remove_all
-        @client_connection.close if @connection_opened
+        @client_connection.close
       end
 
       @log.debug { "close has been called, the client is now closed" }
@@ -246,13 +250,6 @@ module ConfigDirector
 
       raise ConfigDirectorValidationError,
             "This client has been closed and can no longer be used. Create a new one instead."
-    end
-
-    def open_the_connection_once
-      return :opened_before if @connection_opened
-
-      @connection_opened = true
-      @client_connection.open
     end
 
     def client_connection_over(connection)

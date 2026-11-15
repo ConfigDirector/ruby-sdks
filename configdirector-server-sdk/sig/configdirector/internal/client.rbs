@@ -16,8 +16,6 @@ module ConfigDirector
 
     module Client
       module ClientOptionsValidation
-        CONNECTION_MODES: Array[String]
-        OFFLINE_MODE: String
         EVENT_QUEUE_LIMITS: Range[Integer]
         LOGGER_METHODS: Array[Symbol]
 
@@ -34,19 +32,36 @@ module ConfigDirector
 
         def self.reject_an_unusable_logger: (untyped logger) -> void
 
-        def self.reject_an_unusable_connection: (ConnectionOptions connection) -> void
-
-        def self.reject_unusable_durations: (ConnectionOptions connection) -> void
-
-        def self.reject_an_unusable_server_sdk_key_or_url: (untyped server_sdk_key, untyped url) -> void
-
         def self.reject_unusable_telemetry: (TelemetryOptions telemetry) -> void
+      end
 
-        def self.finite_number?: (untyped value) -> bool
+      module ConnectionOptionsValidation
+        SOURCE_OF_VALUES_BY_MODE: Hash[String, Symbol]
 
-        def self.positive_finite_number?: (untyped value) -> bool
+        def self.reject_unusable: (ConnectionOptions connection, untyped server_sdk_key) -> void
+
+        def self.reject_an_unknown_mode: (untyped mode) -> void
+
+        def self.reject_an_unusable_connection_to_configdirector: (
+          ConnectionOptions connection,
+          untyped server_sdk_key
+        ) -> void
+
+        def self.reject_an_offline_timeout_that_is_not_a_number: (untyped timeout) -> void
+
+        def self.reject_an_unusable_server_sdk_key: (untyped server_sdk_key) -> void
+
+        def self.reject_offline_values_given_to: (ConnectionOptions connection) -> void
+
+        def self.reject_an_unusable_url: (untyped url) -> void
 
         def self.http_url?: (untyped url) -> bool
+      end
+
+      module NumberOfSeconds
+        def self.finite?: (untyped value) -> bool
+
+        def self.finite_and_positive?: (untyped value) -> bool
       end
 
       module ContextAttributes
@@ -326,8 +341,11 @@ module ConfigDirector
       end
 
       class ClientConnection
+        CONNECTION_AT_A_LATER_INIT_BY_MODE: Hash[String, Symbol]
+
         @connection: Connection::_Connection
         @mode: String
+        @connection_opened: bool
         @serving_state: ServingState
         @log: Logging::ClientLog
         @report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
@@ -341,13 +359,17 @@ module ConfigDirector
           log: Logging::ClientLog
         ) -> void
 
-        def open: () -> Symbol
+        def open: () -> Symbol?
 
         def close: () -> void
 
         def restart_in_a_forked_process: () -> void
 
         private
+
+        def connection_at_this_init: () -> Symbol
+
+        def open_the_connection: () -> Symbol
 
         def what_follows_a_fork: () -> Symbol
 

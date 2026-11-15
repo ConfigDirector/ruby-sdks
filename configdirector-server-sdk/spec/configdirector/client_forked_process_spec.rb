@@ -367,18 +367,25 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::STREAM_PATH, within: 0.2)).to be(false)
   end
 
-  it "does nothing in a forked process for an offline client, and logs nothing" do
+  it "serves an offline client's values in a forked process, starting no thread there and logging nothing" do
     client = ConfigDirector.create_client(
-      connection: ConfigDirector::ConnectionOptions.new(mode: "offline"), logger: logger
+      connection: ConfigDirector::ConnectionOptions.new(mode: "offline", values: { "max-items" => 20 }), logger: logger
     )
     clients_created << client
     client.init
+    processes_that_started_a_thread = []
+    thread_starts = TracePoint.new(:thread_begin) { processes_that_started_a_thread << Process.pid }
 
-    forked_process = ForkedProcess.reporting do
-      [client.ready?, (logger.messages_at(:debug) + logger.messages_at(:error)).grep(/forked process/)]
+    forked_process = thread_starts.enable(target_thread: nil) do
+      ForkedProcess.reporting do
+        [
+          client.ready?, client.get_value("max-items", 0), processes_that_started_a_thread.count(Process.pid),
+          (logger.messages_at(:debug) + logger.messages_at(:error)).grep(/forked process/)
+        ]
+      end
     end
 
-    expect(forked_process.report).to eq([true, []])
+    expect(forked_process.report).to eq([true, 20, 0, []])
   end
 
   it "logs one debug line that names the forked process for a client that restarts" do

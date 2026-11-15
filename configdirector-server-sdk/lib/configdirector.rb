@@ -21,6 +21,14 @@ require_relative "configdirector/internal/evaluation"
 require_relative "configdirector/internal/value/typed_value"
 require_relative "configdirector/internal/value/in_code_default_value"
 require_relative "configdirector/internal/value/served_text"
+require_relative "configdirector/internal/value/unservable_value"
+require_relative "configdirector/internal/value/plain_decimal_text"
+require_relative "configdirector/internal/value/utf8_text"
+require_relative "configdirector/internal/value/hash_keys"
+require_relative "configdirector/internal/value/native_values"
+require_relative "configdirector/internal/value/json_position"
+require_relative "configdirector/internal/value/json_contents"
+require_relative "configdirector/internal/value/encoded_native_value"
 require_relative "configdirector/internal/server_sent_events/server_sent_event"
 require_relative "configdirector/internal/server_sent_events/event_stream_limit_exceeded"
 require_relative "configdirector/internal/server_sent_events/event_stream_parser"
@@ -34,6 +42,7 @@ require_relative "configdirector/internal/connection/wire_fields"
 require_relative "configdirector/internal/connection/condition_parser"
 require_relative "configdirector/internal/connection/targeting_rules_parser"
 require_relative "configdirector/internal/connection/server_sdk_payload_parser"
+require_relative "configdirector/internal/connection/offline_values_file"
 require_relative "configdirector/internal/connection/offline_mode_connection"
 require_relative "configdirector/internal/connection/polling_interval"
 require_relative "configdirector/internal/connection/json_post_request"
@@ -60,6 +69,8 @@ require_relative "configdirector/internal/polling/poll_request"
 require_relative "configdirector/internal/polling/polling_session"
 require_relative "configdirector/internal/polling/polling_transport"
 require_relative "configdirector/internal/polling/polling_mode_connection"
+require_relative "configdirector/internal/client/number_of_seconds"
+require_relative "configdirector/internal/client/connection_options_validation"
 require_relative "configdirector/internal/client/client_options_validation"
 require_relative "configdirector/internal/client/context_kind"
 require_relative "configdirector/internal/client/invalid_context_kinds"
@@ -105,12 +116,16 @@ module ConfigDirector
   # @param telemetry [TelemetryOptions, nil] telemetry tuning
   # @param hooks [ClientHooks, nil] handlers for the events the client emits
   # @return [ConfigDirectorClient] a client that is not initialized
-  # @raise [ConfigDirectorValidationError] when the server SDK key is missing or blank or +connection.url+
-  #   is not an http or https URL, both outside offline mode only; when +connection.mode+ is not a
-  #   connection mode; when +connection.timeout+ or +telemetry.flush_interval+ is not a positive number;
-  #   when +connection.polling_interval+ is not a number; when +telemetry.event_queue_limit+ is not a whole
-  #   number from 100 to 100,000; when an option is not an object of its option class; when the +logger+
-  #   lacks one of the four methods; or when +log_level+ is not a level and no +logger+ is given
+  # @raise [ConfigDirectorValidationError] when the server SDK key is missing or blank, +connection.url+
+  #   is not an http or https URL, +connection.timeout+ is not a positive number, or +connection.file+ or
+  #   +connection.values+ is given, all outside offline mode only; when +connection.mode+ is not a connection
+  #   mode; in offline mode, when +connection.timeout+ is not a number, when both +connection.file+ and
+  #   +connection.values+ are given, when +connection.values+ is not a Hash or +connection.file+ is neither
+  #   a String nor a Pathname, or when +connection.values+ holds a key that is blank, of another class, not
+  #   UTF-8 text or given twice, or a value the SDK cannot serve; when +telemetry.flush_interval+ is not a
+  #   positive number; when +connection.polling_interval+ is not a number; when +telemetry.event_queue_limit+
+  #   is not a whole number from 100 to 100,000; when an option is not an object of its option class; when
+  #   the +logger+ lacks one of the four methods; or when +log_level+ is not a level and no +logger+ is given
   def self.create_client(
     server_sdk_key = nil, metadata: nil, connection: nil, logger: nil, log_level: nil, telemetry: nil, hooks: nil
   )

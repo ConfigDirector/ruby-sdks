@@ -14,6 +14,90 @@ module ConfigDirector
         def self.kind_of: (untyped default_value) -> in_code_default_value_kind?
       end
 
+      class UnservableValue < StandardError
+      end
+
+      class EncodedNativeValue < Data
+        attr_reader config_type: String
+        attr_reader served_text: String
+
+        def self.new: (config_type: String, served_text: String) -> instance
+
+        def self.of: (untyped value, String config_key) -> EncodedNativeValue
+
+        def self.encoded_float: (Float value, String config_key) -> EncodedNativeValue
+
+        def self.utf8_text_of: (String value, String config_key) -> String
+
+        def self.unservable_because_of_the_class_of: (untyped value, String config_key) -> UnservableValue
+      end
+
+      module PlainDecimalText
+        DIGITS_UP_TO_THE_LAST_NONZERO_ONE: Regexp
+
+        def self.of: (Float finite_float) -> String
+
+        def self.parts_around_the_point: (String digits, Integer digits_before_the_point) -> [String, String]
+      end
+
+      module Utf8Text
+        def self.of: (String text) -> String?
+      end
+
+      module HashKeys
+        def self.name_of: (untyped given_key) -> String?
+
+        def self.description_of_a_key_given_twice_in: (Array[untyped] given_keys, Array[String] key_texts) -> String?
+
+        def self.how_the_two_keys_differ: (untyped first_given, untyped second_given) -> String
+      end
+
+      module NativeValues
+        def self.config_keys_of: (Hash[untyped, untyped] values) -> Array[String]
+
+        def self.config_key_named_by: (untyped given_key) -> String
+      end
+
+      class JsonPosition < Data
+        attr_reader config_key: String
+        attr_reader path: String
+        attr_reader nesting: Integer
+
+        def self.new: (config_key: String, path: String, nesting: Integer) -> instance
+
+        def self.at_the_top_of: (String config_key) -> JsonPosition
+
+        def of_member: (String key_text) -> JsonPosition
+
+        def of_element: (Integer index) -> JsonPosition
+
+        def unservable_because: (String problem) -> UnservableValue
+      end
+
+      module JsonContents
+        MAXIMUM_NESTING: Integer
+        WHAT_JSON_CONTENTS_CAN_HOLD: String
+
+        def self.json_text_of: (Hash[untyped, untyped] | Array[untyped] json_value, String config_key) -> String
+
+        def self.contents_at: (JsonPosition position, untyped contents) -> untyped
+
+        def self.utf8_text_at: (JsonPosition position, String text) -> String
+
+        def self.finite_float_at: (JsonPosition position, Float float) -> Float
+
+        def self.container_contents_at: (
+          JsonPosition position,
+          Hash[untyped, untyped] | Array[untyped] container
+        ) -> (Hash[String, untyped] | Array[untyped])
+
+        def self.members_at: (JsonPosition position, Hash[untyped, untyped] json_object) -> Hash[String, untyped]
+
+        def self.key_text_at: (JsonPosition position, untyped given_key) -> String
+
+        def self.unservable_contents_at: (JsonPosition position, String problem) -> UnservableValue
+      end
+
       class TypedValue < Data
         attr_reader value: config_value
 

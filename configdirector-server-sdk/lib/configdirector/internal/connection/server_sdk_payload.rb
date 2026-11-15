@@ -7,7 +7,11 @@ module ConfigDirector
 
       class ServerSdkPayload
         def self.without_definitions
-          new(delta: false, configs: {}, segments: {}, unreadable_configs: {}, unreadable_segments: {})
+          of_definitions({})
+        end
+
+        def self.of_definitions(configs)
+          new(delta: false, configs: configs, segments: {}, unreadable_configs: {}, unreadable_segments: {})
         end
 
         def configs_held_after(held_configs)
