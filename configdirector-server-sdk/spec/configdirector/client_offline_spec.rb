@@ -336,7 +336,7 @@ RSpec.describe "A client in offline mode" do
     expect(client.get_value("new-checkout", false)).to be(true)
   end
 
-  it "reads a file whose name starts with a pipe as a file, running nothing" do
+  it "reads a file whose name starts with a pipe as a file, running nothing", unless: Gem.win_platform? do
     file_holding('{"banner-text": "read from the file"}', name: "|echo")
     client = offline_client(file: "|echo")
 
