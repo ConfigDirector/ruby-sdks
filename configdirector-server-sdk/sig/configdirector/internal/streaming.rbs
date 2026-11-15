@@ -44,9 +44,15 @@ module ConfigDirector
         @stream_uri: URI::Generic
         @heartbeat_uri: URI::Generic
         @server_sdk_key: String
+        @sdk_identity: Identity::SdkIdentity
         @meta_context: Hash[Symbol, String]
 
-        def initialize: (url: String, server_sdk_key: String, metadata: Metadata) -> void
+        def initialize: (
+          url: String,
+          server_sdk_key: String,
+          metadata: Metadata,
+          sdk_identity: Identity::SdkIdentity
+        ) -> void
 
         def http_session: (StreamTiming timing) -> Net::HTTP
 
@@ -205,8 +211,6 @@ module ConfigDirector
       end
 
       class StreamingTransport
-        include Connection::_Connection[String]
-
         SECONDS_CLOSE_WAITS_FOR_THE_THREADS: Integer
 
         @heartbeats: Heartbeats
@@ -215,6 +219,26 @@ module ConfigDirector
         @threads: Array[StoppableThread]
 
         def initialize: (endpoint: StreamEndpoint, logger: _Logger & Object, ?timing: StreamTiming) -> void
+
+        def open: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String event_data) -> void } -> void
+
+        def close: () -> void
+      end
+
+      class StreamingModeConnection
+        include Connection::_Connection
+        extend Connection::_ConnectionOfAMode
+
+        @transport: StreamingTransport
+        @log: Logging::ClientLog
+
+        def initialize: (StreamingTransport transport, Logging::ClientLog log) -> void
+
+        private
+
+        def payload_or_nothing_in: (String event_data) -> Connection::ServerSdkPayload?
       end
     end
   end

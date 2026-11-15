@@ -109,12 +109,21 @@ there rather than in either of them.
 
 ## How the provider identifies itself
 
-The SDK will report an SDK name and version in the `User-Agent` header and in telemetry: `ruby-server-sdk` and
-`ConfigDirector::VERSION`. A gem built on the SDK, such as the provider, will report its own name and version,
-`ruby-openfeature-server-provider` and `ConfigDirector::OpenFeature::VERSION`, without the SDK accepting an
-arbitrary identity from its caller: the SDK will keep a closed list of the gems allowed to. This list does not
-exist yet; it will arrive with the provider. Adding a wrapper gem will mean adding it to that list, releasing the
-SDK, and registering the new name in the ConfigDirector capability tables.
+The SDK reports an SDK name and version in the `User-Agent` header and in the `metaContext` of every request for
+values, and will report them in telemetry: `ruby-server-sdk` and `ConfigDirector::VERSION`. A gem built on the SDK,
+such as the provider, reports its own name and version, `ruby-openfeature-server-provider` and
+`ConfigDirector::OpenFeature::VERSION`, without the SDK accepting an arbitrary identity from its caller: the SDK
+keeps a closed list of the gems allowed to, `ConfigDirector::Internal::Identity::Wrapper`. Its one entry creates a
+client that reports the provider:
+
+```ruby
+ConfigDirector::Internal::Identity::Wrapper::OPENFEATURE_SERVER_PROVIDER.create_client(server_sdk_key, logger: logger)
+```
+
+`create_client` there takes the arguments of `ConfigDirector.create_client`. The version is read when the client is
+created, and is `0.0.0-dev` while the wrapper's gem is not loaded. The list is not public API. Adding a wrapper gem
+means adding it to that list, releasing the SDK, and registering the new name in the ConfigDirector capability
+tables.
 
 ## Releasing
 

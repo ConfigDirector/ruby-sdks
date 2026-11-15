@@ -1,19 +1,52 @@
 module ConfigDirector
   module Internal
     module Connection
-      interface _Connection[Delivery]
+      interface _Connection
         def open: (
           report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
-        ) { (Delivery delivery) -> void } -> void
+        ) { (ServerSdkPayload payload) -> void } -> Symbol
 
         def close: () -> void
       end
 
+      interface _ConnectionOfAMode
+        def for_a_client_with: (
+          server_sdk_key: String,
+          metadata: Metadata,
+          connection_options: ConnectionOptions,
+          sdk_identity: Identity::SdkIdentity,
+          logger: _Logger & Object
+        ) -> _Connection
+      end
+
+      class NotAServerSdkPayload < StandardError
+      end
+
+      class UnreadableDefinition < StandardError
+      end
+
       class ServerSdkPayload < Data
+        attr_reader delta: bool
         attr_reader configs: Hash[String, ConfigDefinition]
         attr_reader segments: Evaluation::segments
+        attr_reader unreadable_configs: Hash[String, String]
+        attr_reader unreadable_segments: Hash[String, String]
 
-        def self.new: (configs: Hash[String, ConfigDefinition], segments: Evaluation::segments) -> instance
+        def self.new: (
+          delta: bool,
+          configs: Hash[String, ConfigDefinition],
+          segments: Evaluation::segments,
+          unreadable_configs: Hash[String, String],
+          unreadable_segments: Hash[String, String]
+        ) -> instance
+
+        def self.without_definitions: () -> ServerSdkPayload
+
+        def configs_held_after: (Hash[String, ConfigDefinition] held_configs) -> Hash[String, ConfigDefinition]
+
+        def segments_held_after: (Evaluation::segments held_segments) -> Evaluation::segments
+
+        def segment_ids: () -> Array[String]
       end
 
       class ConfigDefinition < Data
@@ -31,37 +64,91 @@ module ConfigDirector
           variations: Array[Variation]
         ) -> instance
 
+        def uses_any_segment_of?: (Array[String] segment_ids) -> bool
+
         def state_serving: (Evaluation::ServedValue served) -> ConfigState
       end
 
-      class HardCodedConnection
-        def open: (**untyped) { (ServerSdkPayload payload) -> void } -> void
+      module WireFields
+        def self.object_or_nil_in: (untyped wire_object, String field) -> Hash[untyped, untyped]?
+
+        def self.list_or_nil_in: (untyped wire_object, String field) -> Array[untyped]?
+
+        def self.list_in: (Hash[untyped, untyped] wire_object, String field, String owner) -> Array[untyped]
+
+        def self.objects_listed_in: (
+          Hash[untyped, untyped] wire_object,
+          String field,
+          String owner,
+          String listed
+        ) -> Array[Hash[untyped, untyped]]
+
+        def self.text_required_in: (Hash[untyped, untyped] wire_object, String field, String owner) -> String
+
+        def self.text_or_nil_in: (Hash[untyped, untyped] wire_object, String field) -> String?
+
+        def self.text_or_empty_in: (Hash[untyped, untyped] wire_object, String field) -> String
+
+        def self.whole_number_or_nil_in: (Hash[untyped, untyped] wire_object, String field) -> Integer?
+      end
+
+      module ConditionParser
+        ATTRIBUTE_KIND: String
+        SEGMENT_KIND: String
+
+        def self.condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::_Condition
+
+        def self.condition_group_defined_by: (untyped wire_condition_group) -> Array[Evaluation::AttributeCondition]
+
+        def self.kind_of: (Hash[untyped, untyped] wire_condition) -> untyped
+
+        def self.attribute_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::AttributeCondition
+
+        def self.target_value_text_of: (untyped wire_target_value) -> String
+
+        def self.segment_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::SegmentCondition
+      end
+
+      module TargetingRulesParser
+        def self.targeting_rules_defined_by: (Hash[untyped, untyped] wire_target) -> Evaluation::TargetingRules
+
+        def self.rule_defined_by: (Hash[untyped, untyped] wire_rule) -> Evaluation::Rule
+
+        def self.conditions_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::_Condition]
+
+        def self.shares_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::Share]?
+
+        def self.share_defined_by: (untyped wire_share) -> Evaluation::Share
+      end
+
+      module ServerSdkPayloadParser
+        DELTA_KIND: String
+
+        def self.payload_in: (String payload_text) -> ServerSdkPayload
+
+        def self.payload_defined_by: (
+          untyped wire_kind,
+          Hash[untyped, untyped] wire_configs,
+          Hash[untyped, untyped] wire_segments
+        ) -> ServerSdkPayload
+
+        def self.definitions_read_in: [Definition] (
+          Hash[untyped, untyped] wire_definitions
+        ) { (untyped wire_definition) -> Definition } -> [Hash[String, Definition], Hash[String, String]]
+
+        def self.config_defined_by: (untyped wire_config) -> ConfigDefinition
+
+        def self.variations_listed_in: (Hash[untyped, untyped] wire_config) -> Array[Variation]
+
+        def self.segment_defined_by: (untyped wire_segment) -> Evaluation::Segment
+      end
+
+      class OfflineModeConnection
+        def self.for_a_client_with: (**untyped) -> OfflineModeConnection
+
+        def open: (**untyped) { (ServerSdkPayload payload) -> void } -> Symbol
 
         def close: () -> void
-
-        CONFIG_DEFINITIONS: Array[ConfigDefinition]
-
-        def self.serving: (
-          String default_targeting_rule_value,
-          String? value_id,
-          ?String? variation_id,
-          ?rules: Array[Evaluation::Rule]
-        ) -> Evaluation::TargetingRules
-
-        def self.value_when: (
-          Evaluation::_Condition condition,
-          String value,
-          rule_id: String,
-          value_id: String
-        ) -> Evaluation::Rule
-
-        def self.rollout_to_everyone: (
-          String value,
-          rule_id: String,
-          share_id: String,
-          value_id: String,
-          variation_id: String
-        ) -> Evaluation::Rule
       end
 
       class PollingInterval < Data
@@ -76,16 +163,8 @@ module ConfigDirector
         def seconds: () -> seconds
       end
 
-      module SdkIdentity
-        NAME: String
-
-        def self.user_agent: () -> String
-
-        def self.meta_context_of_an_application_with: (Metadata metadata) -> Hash[Symbol, String]
-      end
-
       module JsonPostRequest
-        def self.to: (URI::Generic uri, **untyped body) -> Net::HTTP::Post
+        def self.to: (URI::Generic uri, Identity::SdkIdentity sdk_identity, **untyped body) -> Net::HTTP::Post
       end
 
       module HttpSession

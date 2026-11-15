@@ -102,9 +102,15 @@ module ConfigDirector
       class PollingEndpoint
         @poll_uri: URI::Generic
         @server_sdk_key: String
+        @sdk_identity: Identity::SdkIdentity
         @meta_context: Hash[Symbol, String]
 
-        def initialize: (url: String, server_sdk_key: String, metadata: Metadata) -> void
+        def initialize: (
+          url: String,
+          server_sdk_key: String,
+          metadata: Metadata,
+          sdk_identity: Identity::SdkIdentity
+        ) -> void
 
         def http_session: () -> Net::HTTP
 
@@ -182,7 +188,7 @@ module ConfigDirector
 
         def answer_before: (PollDeadline deadline) -> PollAnswer
 
-        def deliver: (PollAnswer answer, ^(String payload_text) -> void deliver_payload_text) -> void
+        def deliver: (PollAnswer answer, ^(String payload_text) -> void deliver_payload_text) -> Symbol
 
         def log_the_failure_of: (PollAnswer answer) -> void
 
@@ -193,8 +199,6 @@ module ConfigDirector
       end
 
       class PollingTransport
-        include Connection::_Connection[String]
-
         SECONDS_CLOSE_WAITS_FOR_THE_THREAD: Integer
 
         @session: PollingSession
@@ -203,6 +207,30 @@ module ConfigDirector
         @polling_thread: StoppableThread?
 
         def initialize: (endpoint: PollingEndpoint, timing: PollTiming, logger: _Logger & Object) -> void
+
+        def open: (
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> Symbol
+
+        def close: () -> void
+
+        private
+
+        def poll_on_every_interval_unless_closed: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(String payload_text) -> void deliver_payload_text
+        ) -> void
+      end
+
+      class PollingModeConnection
+        include Connection::_Connection
+        extend Connection::_ConnectionOfAMode
+
+        OPENING_BY_WHAT_FOLLOWS_THE_FIRST_POLL: Hash[Symbol, Symbol]
+
+        @transport: PollingTransport
+
+        def initialize: (PollingTransport transport) -> void
       end
     end
   end

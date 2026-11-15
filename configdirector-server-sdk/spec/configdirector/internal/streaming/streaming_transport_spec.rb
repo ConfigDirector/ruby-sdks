@@ -42,7 +42,8 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
   def transport_to(url, metadata: ConfigDirector::Metadata.new, **timing_when_not_the_protocol)
     transport = described_class.new(
       endpoint: ConfigDirector::Internal::Streaming::StreamEndpoint.new(
-        url: url, server_sdk_key: "server-sdk-key", metadata: metadata
+        url: url, server_sdk_key: "server-sdk-key", metadata: metadata,
+        sdk_identity: ConfigDirector::Internal::Identity::SdkIdentity.of_the_server_sdk
       ),
       logger: logger, **timing_when_not_the_protocol
     )

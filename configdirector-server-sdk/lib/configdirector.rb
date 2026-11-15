@@ -24,11 +24,18 @@ require_relative "configdirector/internal/value/served_text"
 require_relative "configdirector/internal/server_sent_events/server_sent_event"
 require_relative "configdirector/internal/server_sent_events/event_stream_limit_exceeded"
 require_relative "configdirector/internal/server_sent_events/event_stream_parser"
+require_relative "configdirector/internal/identity/sdk_identity"
+require_relative "configdirector/internal/identity/wrapper"
+require_relative "configdirector/internal/connection/not_a_server_sdk_payload"
+require_relative "configdirector/internal/connection/unreadable_definition"
 require_relative "configdirector/internal/connection/server_sdk_payload"
 require_relative "configdirector/internal/connection/config_definition"
-require_relative "configdirector/internal/connection/hard_coded_connection"
+require_relative "configdirector/internal/connection/wire_fields"
+require_relative "configdirector/internal/connection/condition_parser"
+require_relative "configdirector/internal/connection/targeting_rules_parser"
+require_relative "configdirector/internal/connection/server_sdk_payload_parser"
+require_relative "configdirector/internal/connection/offline_mode_connection"
 require_relative "configdirector/internal/connection/polling_interval"
-require_relative "configdirector/internal/connection/sdk_identity"
 require_relative "configdirector/internal/connection/json_post_request"
 require_relative "configdirector/internal/connection/http_session"
 require_relative "configdirector/internal/connection/retry_after_header"
@@ -43,6 +50,7 @@ require_relative "configdirector/internal/streaming/stream_connection"
 require_relative "configdirector/internal/streaming/heartbeats"
 require_relative "configdirector/internal/streaming/reconnecting_stream"
 require_relative "configdirector/internal/streaming/streaming_transport"
+require_relative "configdirector/internal/streaming/streaming_mode_connection"
 require_relative "configdirector/internal/polling/poll_timing"
 require_relative "configdirector/internal/polling/poll_deadline"
 require_relative "configdirector/internal/polling/refusal_detail"
@@ -51,6 +59,7 @@ require_relative "configdirector/internal/polling/polling_endpoint"
 require_relative "configdirector/internal/polling/poll_request"
 require_relative "configdirector/internal/polling/polling_session"
 require_relative "configdirector/internal/polling/polling_transport"
+require_relative "configdirector/internal/polling/polling_mode_connection"
 require_relative "configdirector/internal/client/client_options_validation"
 require_relative "configdirector/internal/client/context_kind"
 require_relative "configdirector/internal/client/invalid_context_kinds"
@@ -63,6 +72,7 @@ require_relative "configdirector/internal/client/event_handlers"
 require_relative "configdirector/internal/client/watches"
 require_relative "configdirector/internal/client/config_reader"
 require_relative "configdirector/internal/client/connection_intake"
+require_relative "configdirector/internal/client/client_factory"
 require_relative "configdirector/config_director_client"
 
 # The ConfigDirector server SDK.
@@ -100,35 +110,10 @@ module ConfigDirector
   def self.create_client(
     server_sdk_key = nil, metadata: nil, connection: nil, logger: nil, log_level: nil, telemetry: nil, hooks: nil
   )
-    metadata ||= Metadata.new
-    connection ||= ConnectionOptions.new
-    Internal::Client::ClientOptionsValidation.reject_unusable(
-      server_sdk_key: server_sdk_key, metadata: metadata, connection: connection,
-      telemetry: telemetry || TelemetryOptions.new, hooks: hooks || ClientHooks.new, logger: logger
-    )
-    logger ||= Internal::Logging::DefaultLogger.writing_from(log_level)
-    warn_of_a_polling_interval_below_the_minimum(connection, logger)
-
-    client_on(Internal::Connection::HardCodedConnection.new, metadata, connection, logger, hooks || ClientHooks.new)
-  end
-
-  def self.client_on(internal_connection, metadata, connection_options, logger, hooks)
-    ConfigDirectorClient.new(
-      connection: internal_connection, metadata: metadata, timeout: connection_options.timeout.to_f, logger: logger,
+    Internal::Client::ClientFactory.client_identified_as(
+      Internal::Identity::SdkIdentity.of_the_server_sdk, server_sdk_key,
+      metadata: metadata, connection: connection, logger: logger, log_level: log_level, telemetry: telemetry,
       hooks: hooks
     )
   end
-
-  def self.warn_of_a_polling_interval_below_the_minimum(connection, logger)
-    polling_interval = Internal::Connection::PollingInterval.new(configured_seconds: connection.polling_interval)
-    return unless connection.mode == "polling" && polling_interval.raised_to_the_minimum?
-
-    Internal::Logging::ClientLog.new(logger).warn(
-      "polling_interval of #{polling_interval.configured_seconds} seconds is below the " \
-      "minimum of #{Internal::Connection::PollingInterval::MINIMUM_SECONDS} seconds. " \
-      "Using #{polling_interval.seconds} seconds."
-    )
-  end
-
-  private_class_method :client_on, :warn_of_a_polling_interval_below_the_minimum
 end

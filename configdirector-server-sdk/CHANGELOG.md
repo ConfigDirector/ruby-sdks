@@ -23,9 +23,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `ClientHooks` (`client_ready`, `configs_updated`, `config_evaluated`, `connection_error`). Every duration is in
   seconds. In polling mode a `polling_interval` below 60 seconds is
   raised to 60 and a warning is logged. An option object cannot be changed once built.
-- `init` waits for the first values, up to `connection.timeout`, and makes the client ready. When no values
-  arrive in time it logs a warning and returns. `ready?` says whether the client has values to serve. Calling
-  `init` again waits again and never opens a second connection.
+- The client connects to ConfigDirector at `connection.url`. In `"streaming"` mode, the default, it keeps a
+  connection open and receives a new value as soon as it changes in ConfigDirector, and it reconnects by itself
+  when the connection drops. In `"polling"` mode it asks for new values every `polling_interval`, and
+  `connection.timeout` is also how long each of those requests may take. In `"offline"` mode it makes no network
+  call and is ready after `init`; for now an offline client serves no values, so every read returns its in-code
+  default value with the reason `"config-state-missing"`.
+- `init` connects and makes the client ready. It waits, up to `connection.timeout`, for the first values and for
+  their handlers and watches to finish. When no values arrive in time it logs a warning and returns, and the
+  client keeps trying. It never raises because the connection failed. `ready?` says whether the client has
+  values to serve. Calling `init` again waits again and never opens a second connection.
+- When ConfigDirector refuses the connection, for example because it does not know the server SDK key, the client
+  logs an error, calls the `connection_error` handlers once and does not try again. An `init` that is waiting
+  returns at once, without the warning, and so does a later `init`. A client that was ready keeps serving the
+  values it has.
+- In polling mode, `init` returns as soon as the first request for values has failed, with the failure logged as
+  an error, and the client asks again after the polling interval.
+- A config or segment whose definition the SDK cannot read is skipped with a warning, and every other config is
+  served. A read of a skipped config returns its in-code default value with the reason `"config-state-missing"`,
+  and a client that served the config before names it in the `removed_keys` of `configs_updated`. Fields the SDK
+  does not know are ignored.
 - `get_value(config_key, default_value, context)` returns a config's value as the class of the in-code
   default value: `true` or `false`, a String, an Integer, a Float, a Hash for a JSON object or an Array for a
   JSON array. An Integer read accepts a whole number written as `26.0` or `1e3`. A `nil` in-code default
@@ -75,31 +92,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   left out.
 - `client_ready` handlers are called with no argument once, when the client first receives values and becomes
   ready. `configs_updated` handlers receive a `ConfigsUpdatedEvent` each time the client receives values: its
-  `keys` are the configs received, in the order ConfigDirector sent them, and its `removed_keys` the configs the
-  client no longer serves because the values received left them out. `config_evaluated` handlers receive a
-  `ConfigEvaluatedEvent` with the `evaluation` of every `get_value`, `evaluate` and watch, before the read
-  returns; `get_all_configs` calls none of them. `connection_error` handlers receive a `ConnectionErrorEvent` with
-  the `error`, and nothing calls them until the SDK connects to ConfigDirector.
+  `keys` are the configs received, in the order ConfigDirector sent them, followed by the configs whose targeting
+  rules use a segment that was received, and its `removed_keys` the configs the client no longer serves because
+  the values received left them out. `config_evaluated` handlers receive a `ConfigEvaluatedEvent` with the
+  `evaluation` of every `get_value`, `evaluate` and watch, before the read returns; `get_all_configs` calls none
+  of them. `connection_error` handlers receive a `ConnectionErrorEvent` with the `error`.
 - `ClientHooks.new(client_ready:, configs_updated:, config_evaluated:, connection_error:)` takes one handler or an
   Array of handlers per event. `create_client` registers them in the order given, before any handler registered
   with `on`. An entry that does not respond to `call` is ignored and a warning is logged.
 - `watch(config_key, default_value, context) { |value| ... }` calls the block with the config's value each time
-  the client receives values that include the config, even when its value is the same, and with the in-code
-  default value when they leave it out. It never calls the block when the watch is registered, so a watch
-  registered before `init` receives the first value during it. It returns a `Subscription`. A missing block, an
-  in-code default value `get_value` would reject, or a context that is not a `Context` raises
-  `ConfigDirectorValidationError`.
+  the client receives values that include the config or a segment its targeting rules use, even when its value
+  is the same, and with the in-code default value when they leave it out. It never calls the block when the
+  watch is registered, so a watch registered before `init` receives the first value during it. It returns a
+  `Subscription`. A missing block, an in-code default value `get_value` would reject, or a context that is not
+  a `Context` raises `ConfigDirectorValidationError`.
 - `unwatch(config_key, callback)` removes the first watch on the key whose block is `callback`, the same Proc or
   lambda, or every watch on the key when `callback` is left out. `unwatch_all` removes every watch.
 - `Subscription#close` removes the handler or watch it registered, and only that one, even when the same handler
   or block was registered again. It can be called more than once, and `closed?` says whether it was.
 - Each time the client receives values, the `configs_updated` handlers run first, then the watches on the keys
   received and then on the keys removed, then the `client_ready` handlers when the client has just become ready.
-  They run on the thread that delivered the values, and `config_evaluated` handlers on the thread that read. A
-  handler or watch can read from the client.
+  They run on the thread that received the values: a thread of the SDK in streaming mode, and in polling mode
+  the thread that called `init` for the first request and a thread of the SDK for every later one. In offline
+  mode it is the thread that called `init`.
+  `connection_error` handlers run on those threads too, and `config_evaluated` handlers on the thread that read.
+  A handler or watch can read from the client.
 - A handler or watch that raises a `StandardError` is logged at error level and ignored: the other handlers and
   watches still run and the read still returns its value.
 - `close` also removes every handler, hook and watch.
 - `Context`, `Variation`, `ConfigState`, `ConfigEvaluation`, `ConfigsUpdatedEvent`, `ConfigEvaluatedEvent`,
   `ConnectionErrorEvent` and the option objects compare by value with `==`, and cannot be changed once built.
-- Until the SDK connects to ConfigDirector, every client serves a fixed set of nine sample configs.

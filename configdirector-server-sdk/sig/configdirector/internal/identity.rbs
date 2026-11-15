@@ -1,0 +1,47 @@
+module ConfigDirector
+  module Internal
+    module Identity
+      class SdkIdentity
+        @sdk_name: String
+        @sdk_version: String
+
+        def self.of_the_server_sdk: () -> SdkIdentity
+
+        def self.of_the_wrapper: (untyped wrapper) -> SdkIdentity
+
+        def initialize: (String sdk_name, String sdk_version) -> void
+
+        def user_agent: () -> String
+
+        def meta_context_of_an_application_with: (Metadata metadata) -> Hash[Symbol, String]
+      end
+
+      class Wrapper
+        VERSION_WITHOUT_THE_GEM_OF_THE_WRAPPER: String
+        OPENFEATURE_SERVER_PROVIDER: Wrapper
+
+        @name_of_the_version_constant_of_its_gem: String
+
+        attr_reader sdk_name: String
+
+        def initialize: (String sdk_name, String name_of_the_version_constant_of_its_gem) -> void
+
+        def create_client: (
+          ?String? server_sdk_key,
+          ?metadata: Metadata?,
+          ?connection: ConnectionOptions?,
+          ?logger: (_Logger & Object)?,
+          ?log_level: (Integer | Symbol | String)?,
+          ?telemetry: TelemetryOptions?,
+          ?hooks: ClientHooks?
+        ) -> ConfigDirectorClient
+
+        def version_of_its_gem: () -> String
+
+        private
+
+        def gem_loaded?: () -> bool
+      end
+    end
+  end
+end

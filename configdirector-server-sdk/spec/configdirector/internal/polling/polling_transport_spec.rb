@@ -57,7 +57,8 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
   )
     transport = described_class.new(
       endpoint: ConfigDirector::Internal::Polling::PollingEndpoint.new(
-        url: url, server_sdk_key: server_sdk_key, metadata: metadata
+        url: url, server_sdk_key: server_sdk_key, metadata: metadata,
+        sdk_identity: ConfigDirector::Internal::Identity::SdkIdentity.of_the_server_sdk
       ),
       timing: timing_recording_its_pauses.with(**timing_changes), logger: logger
     )

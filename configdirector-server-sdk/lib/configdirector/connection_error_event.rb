@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
 module ConfigDirector
-  # What the +connection_error+ handlers will receive when the connection to ConfigDirector fails and will
-  # not be retried. The client does not connect to ConfigDirector yet, so nothing creates one. Two events
-  # with the same error are equal.
+  # What the +connection_error+ handlers receive when ConfigDirector refuses the connection and the client
+  # will not try again. Two events with the same error are equal.
   class ConnectionErrorEvent
     include Internal::ComparedByValue
 

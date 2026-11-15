@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
 require_relative "../support/recording_logger"
+require_relative "../support/sdk_server_serving_the_sample_configs"
 
 RSpec.describe "Getting all configs" do
-  let(:client) { ConfigDirector.create_client("server-sdk-key", logger: RecordingLogger.new) }
+  include_context "with an SDK server that serves the sample configs"
+
+  let(:client) { client_of_the_sample_configs(logger: RecordingLogger.new) }
 
   it "returns no configs before init" do
     expect(client.get_all_configs).to eq({})

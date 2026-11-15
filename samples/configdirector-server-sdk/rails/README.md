@@ -14,7 +14,7 @@ You need Bundler and Ruby 3.3.13, 3.4.12, 4.0.9 or a later release on the same l
 ```bash
 cd samples/configdirector-server-sdk/rails
 bundle install
-cp .env.example .env      # optional, the sample runs without a real key
+cp .env.example .env      # then set your server SDK key; the sample also runs without a real key
 bundle exec puma
 ```
 
@@ -40,8 +40,9 @@ curl 'http://localhost:3800/configs?id=user-123&plan=pro'
 }
 ```
 
-The SDK does not connect to ConfigDirector yet. Until it does, every client serves the same fixed values whatever
-its key, and those are the values above.
+Those are the values of an environment that has the five configs, with a targeting rule that serves `Tuesday` to
+the `pro` plan. Without a real server SDK key, or for a config the environment does not have, the sample answers
+with the in-code default value instead: see [Running without a server SDK key](#running-without-a-server-sdk-key).
 
 Query parameters double as the context the configs are evaluated for: `id`, `kind`, `name` and `anonymous` map to
 the matching `Context` fields, and anything else becomes a trait:
@@ -74,18 +75,18 @@ end
 client = ConfigDirectorClientPerProcess.client
 ```
 
-Each Ruby process holds its own client, and once the SDK connects to ConfigDirector, each client will hold its own
-connection. A client is safe to share between threads, so every Puma thread in a worker reads through that worker's
-client, and the lock makes sure two first requests arriving together still end up with one client. Never create a
-client inside a request: each one waits in `init` for its first values, will open a connection of its own, and
-takes its handlers and watches with it when it is dropped.
+Each Ruby process holds its own client, and each client holds its own connection to ConfigDirector. A client is
+safe to share between threads, so every Puma thread in a worker reads through that worker's client, and the lock
+makes sure two first requests arriving together still end up with one client. Never create a client inside a
+request: each one waits in `init` for its first values, opens a connection of its own, and takes its handlers and
+watches with it when it is dropped.
 
 Nothing creates the client while the application loads, in an initializer or in `config/application.rb`. A client
 created while a Rails application boots would also connect in the Puma master, which serves no request, in
 `bin/rails console` and in every task that loads the application, and in an application that requires the key,
 creating it would raise during `assets:precompile` in an image build that has no server SDK key. Created on first
-use, a client exists only in a process that reads a config, so only such a process will connect, and the first
-request in each worker will wait for the first values, up to `CONFIGDIRECTOR_TIMEOUT` seconds. With the two workers
+use, a client exists only in a process that reads a config, so only such a process connects, and the first
+request in each worker waits for the first values, up to `CONFIGDIRECTOR_TIMEOUT` seconds. With the two workers
 above, the log shows one line for each worker, after its first request, and none for the master:
 
 ```
@@ -118,8 +119,8 @@ none.
 
 **Initialization is explicit and non-fatal.** `init` waits for the first values, up to `CONFIGDIRECTOR_TIMEOUT`
 seconds. When none arrive in time it logs a warning and returns, and every read returns its in-code default value
-until values arrive. The sample logs whether the client is ready once it has created it. Creating the client makes
-no network call.
+until values arrive. When ConfigDirector refuses the server SDK key it logs an error and returns at once. The sample
+logs whether the client is ready once it has created it. Creating the client makes no network call.
 
 **In-code default values are the fallback.** Every `get_value` call passes the value to serve when ConfigDirector
 cannot provide one, so it should be the safe choice. Its class also decides how the config value is read: `true` or
@@ -146,8 +147,7 @@ SDK refuses, or a timeout that is not a number, makes every request to `/configs
 why.
 
 **Shutdown is clean.** When a process that created a client exits, an `at_exit` handler closes the client, which
-will close its connection once the SDK connects. Puma's workers run it when they stop gracefully, after Ctrl-C or
-`SIGTERM`.
+closes its connection. Puma's workers run it when they stop gracefully, after Ctrl-C or `SIGTERM`.
 
 The SDK also supports watching configs and subscribing to the client's events; see `watch` and `on` in
 [`ConfigDirectorClient`](../../../configdirector-server-sdk/lib/configdirector/config_director_client.rb).
@@ -160,9 +160,11 @@ The suite calls the application in process, so no web server runs. The request s
 [`spec/processes_spec.rb`](spec/processes_spec.rb) runs `bin/rails runner` to check what a process does when it
 loads the application without a key and when it exits.
 
-The tests read through the client the application creates. Because the SDK does not connect to ConfigDirector yet,
-that client serves the fixed values above, and the tests assert those. Once the SDK ships its test client, the tests
-will read through a test client instead.
+The tests read through the client the application creates, and never connect to ConfigDirector.
+[`spec/rails_helper.rb`](spec/rails_helper.rb) starts a local HTTP server that answers a stream or a poll as
+ConfigDirector does, with the five configs of [`spec/support/five_standard_configs.rb`](spec/support/five_standard_configs.rb),
+and points `CONFIGDIRECTOR_BASE_URL` at it. Once the SDK ships its test client, the tests will read through a test
+client instead.
 
 To see the context each config was evaluated for, a test registers a `config_evaluated` handler on the process's
 client before it sends the request:
@@ -180,9 +182,9 @@ the module, so the next example starts without one.
 
 ## Running without a server SDK key
 
-Without `CONFIGDIRECTOR_SERVER_KEY` the sample creates its client with `fake-sample-key`. For now that key gets the
-fixed values above, like any other. Once the SDK connects to ConfigDirector, ConfigDirector will refuse that key, the
-client will stay not ready, and every config will fall back to the in-code default value this app passes in:
+Without `CONFIGDIRECTOR_SERVER_KEY` the sample creates its client with `fake-sample-key`. ConfigDirector refuses
+that key, so the client logs an error and stays not ready, and every config falls back to the in-code default value
+this app passes in:
 
 ```json
 {

@@ -6,34 +6,60 @@ module ConfigDirector
   # The ConfigDirector SDK client. Create one with {ConfigDirector.create_client}, call {#init} when your
   # application starts and {#close} when it shuts down. A client can be shared between threads.
   class ConfigDirectorClient
+    WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
+      "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
+                     "Configs will return the in-code default value until the connection succeeds.",
+      "polling" => "Since the client was configured without streaming, configs may not update and always " \
+                   "return the in-code default value.",
+      "offline" => "The offline values were not delivered, so configs return the in-code default value."
+    }.freeze
+
+    private_constant :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
+
     # @api private
-    def initialize(connection:, metadata:, timeout:, logger:, hooks:)
+    def initialize(connection:, connection_options:, metadata:, logger:, hooks:)
       @connection = connection
-      @metadata = metadata
-      @timeout = timeout
+      @mode = connection_options.mode
+      @timeout = connection_options.timeout.to_f
       @log = Internal::Logging::ClientLog.new(logger)
       @connection_lifecycle = Monitor.new
       @connection_opened = false
-      @serving_state = Internal::Client::ServingState.new
+      @serving_state = Internal::Client::ServingState.new(metadata)
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
       @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, @log)
     end
 
-    # Gets the values ConfigDirector serves and makes the client ready. It waits for the first values, up to
-    # the connection timeout. When no values arrive in time it logs a warning and returns, and every read
-    # returns its in-code default value until values arrive. Calling it again waits again and never opens
-    # a second connection.
+    # Connects to ConfigDirector and makes the client ready. It waits, up to the connection timeout, for the
+    # first values and for their +configs_updated+ handlers, watches and +client_ready+ handlers to finish.
+    # Calling it again waits again and never opens a second connection.
+    #
+    # It never raises because the connection failed, and every read returns its in-code default value until
+    # values arrive:
+    #
+    # - When no values arrive in time it logs a warning and returns, and the client keeps trying.
+    # - When ConfigDirector refuses the connection, for example because it does not know the server SDK key,
+    #   it logs an error, calls the +connection_error+ handlers and returns at once. The client does not try
+    #   again, and a later call returns at once.
+    # - In polling mode, when the first request for values fails for another reason, it logs an error and
+    #   returns at once, and the client asks again after the polling interval.
+    #
+    # In offline mode it makes no network call and the client is ready when it returns.
     #
     # @return [void]
     # @raise [ConfigDirectorValidationError] when the client is closed
     def init
-      @connection_lifecycle.synchronize do
+      give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @timeout
+      connection_opening = @connection_lifecycle.synchronize do
         raise_if_closed
         open_the_connection_once
       end
 
-      warn_that_no_values_arrived_in_time if @serving_state.timed_out_waiting_for_the_first_values?(@timeout)
+      case connection_opening
+      when :first_attempt_failed then nil
+      when :values_awaited, :opened_before
+        warn_that_no_values_arrived_in_time if @serving_state.timed_out_waiting_for_the_first_values?(give_up_at)
+      end
     end
 
     # @return [Boolean] whether the client has values to serve
@@ -93,9 +119,10 @@ module ConfigDirector
     # Calls the block with the config's value each time the client receives values that include the config
     # or leave it out, even when its value is the same. The block is not called when the watch is
     # registered, so a watch registered before {#init} receives the first value during it. When the values
-    # received leave the config out, the block receives the in-code default value. The block runs on the
-    # thread that delivered the values, after the +configs_updated+ handlers, and an error it raises is
-    # logged and ignored.
+    # received leave the config out, the block receives the in-code default value. The block is also called
+    # each time the client receives a segment that one of the config's targeting rules uses. The block runs
+    # on the thread that received the values, as {#on} describes, after the +configs_updated+ handlers, and
+    # an error it raises is logged and ignored.
     #
     # @example
     #   subscription = client.watch("new-checkout", false, ConfigDirector::Context.new(id: "user-123")) do |enabled|
@@ -146,12 +173,15 @@ module ConfigDirector
     #   values, the first time included.
     # - +:config_evaluated+ handlers are called with a {ConfigEvaluatedEvent} each time {#get_value},
     #   {#evaluate} or a watch evaluates a config, on the thread that read, before the read returns.
-    # - +:connection_error+ handlers will be called with a {ConnectionErrorEvent} when the connection to
-    #   ConfigDirector fails and will not be retried. The client does not connect to ConfigDirector yet, so
-    #   nothing calls them.
+    # - +:connection_error+ handlers are called with a {ConnectionErrorEvent} when ConfigDirector refuses the
+    #   connection, for example because it does not know the server SDK key, and the client will not try
+    #   again. They are called at most once for a client.
     #
-    # +client_ready+ and +configs_updated+ handlers run on the thread that delivered the values. Handlers
-    # may read from the client, and an error a handler raises is logged and ignored.
+    # +client_ready+, +configs_updated+ and +connection_error+ handlers run on the thread that received
+    # from ConfigDirector. In streaming mode that is a thread of the SDK. In polling mode it is the thread
+    # that called {#init} for the first request, and a thread of the SDK for every later one. In offline
+    # mode it is the thread that called {#init}. Handlers may read from the client, and an error a handler
+    # raises is logged and ignored.
     #
     # @example
     #   client.on(:configs_updated) { |event| puts "Updated: #{event.keys.join(", ")}" }
@@ -215,11 +245,11 @@ module ConfigDirector
     end
 
     def open_the_connection_once
-      return if @connection_opened
+      return :opened_before if @connection_opened
 
       @connection_opened = true
       intake = Internal::Client::ConnectionIntake.new(
-        metadata: @metadata, serving_state: @serving_state, event_handlers: @event_handlers, watches: @watches,
+        serving_state: @serving_state, event_handlers: @event_handlers, watches: @watches,
         config_reader: @config_reader, log: @log
       )
       report_unrecoverable_error = ->(connection_error) { intake.take_in_unrecoverable_error(connection_error) }
@@ -228,8 +258,8 @@ module ConfigDirector
 
     def warn_that_no_values_arrived_in_time
       @log.warn(
-        "Timed out waiting for initialization after #{format("%g", @timeout)} seconds. " \
-        "Configs return the in-code default value until values arrive."
+        "Timed out waiting for initialization after #{format("%g", @timeout)}s. " \
+        "#{WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE.fetch(@mode)}"
       )
     end
   end

@@ -231,8 +231,36 @@ module ConfigDirector
         def deliver_on: (Array[String] config_keys) { (ConfigRead config_read) -> config_value } -> void
       end
 
+      module ClientFactory
+        CONNECTION_CLASS_BY_MODE: Hash[String, Connection::_ConnectionOfAMode]
+
+        def self.client_identified_as: (
+          Identity::SdkIdentity sdk_identity,
+          String? server_sdk_key,
+          metadata: Metadata?,
+          connection: ConnectionOptions?,
+          logger: (_Logger & Object)?,
+          log_level: (Integer | Symbol | String)?,
+          telemetry: TelemetryOptions?,
+          hooks: ClientHooks?
+        ) -> ConfigDirectorClient
+
+        def self.client_with_usable_options: (
+          sdk_identity: Identity::SdkIdentity,
+          server_sdk_key: String,
+          metadata: Metadata,
+          connection_options: ConnectionOptions,
+          logger: _Logger & Object,
+          hooks: ClientHooks
+        ) -> ConfigDirectorClient
+
+        def self.warn_of_a_polling_interval_below_the_minimum: (
+          ConnectionOptions connection,
+          _Logger & Object logger
+        ) -> void
+      end
+
       class ConnectionIntake
-        @metadata: Metadata
         @serving_state: ServingState
         @event_handlers: EventHandlers
         @watches: Watches
@@ -240,7 +268,6 @@ module ConfigDirector
         @log: Logging::ClientLog
 
         def initialize: (
-          metadata: Metadata,
           serving_state: ServingState,
           event_handlers: EventHandlers,
           watches: Watches,
@@ -254,29 +281,38 @@ module ConfigDirector
 
         private
 
+        def warn_of_the_definitions_skipped_in: (Connection::ServerSdkPayload payload) -> void
+
+        def deliver_the_first_values: (ConfigsUpdatedEvent update) -> void
+
         def deliver_the_update: (ConfigsUpdatedEvent update) -> void
       end
 
       class ServingState
+        @metadata: Metadata
         @lock: Thread::Mutex
         @first_values_no_longer_awaited: Thread::ConditionVariable
         @served_configs: ServedConfigs?
+        @thread_delivering_the_first_values: Thread?
+        @first_values_delivered: bool
         @closed: bool
         @connection_failed_unrecoverably: bool
 
-        def initialize: () -> void
+        def initialize: (Metadata metadata) -> void
 
         def served_configs: () -> ServedConfigs?
 
         def closed?: () -> bool
 
-        def serve: (ServedConfigs served_configs) -> [arrival_of_values, ServedConfigs?]
+        def serve: (Connection::ServerSdkPayload payload) -> [arrival_of_values, ConfigsUpdatedEvent]
+
+        def end_the_delivery_of_the_first_values: () -> void
 
         def close: () -> void
 
         def expect_no_values_from_the_connection: () -> void
 
-        def timed_out_waiting_for_the_first_values?: (Float timeout_seconds) -> bool
+        def timed_out_waiting_for_the_first_values?: (Float give_up_at_monotonic_seconds) -> bool
 
         private
 
@@ -286,20 +322,29 @@ module ConfigDirector
       class ServedConfigs < Data
         REASON_BY_SERVED_BY: Hash[Symbol, String]
 
-        attr_reader payload: Connection::ServerSdkPayload
+        attr_reader configs: Hash[String, Connection::ConfigDefinition]
+        attr_reader segments: Evaluation::segments
         attr_reader metadata: Metadata
 
-        def self.new: (payload: Connection::ServerSdkPayload, metadata: Metadata) -> instance
+        def self.new: (
+          configs: Hash[String, Connection::ConfigDefinition],
+          segments: Evaluation::segments,
+          metadata: Metadata
+        ) -> instance
+
+        def self.without_definitions: (Metadata metadata) -> ServedConfigs
+
+        def after: (Connection::ServerSdkPayload payload) -> ServedConfigs
+
+        def update_since: (ServedConfigs replaced_configs, Connection::ServerSdkPayload payload) -> ConfigsUpdatedEvent
 
         def evaluation: (ConfigRead config_read) -> ConfigEvaluation
 
         def states: (Context? context, Array[String]? config_keys) -> Hash[String, ConfigState]
 
-        def update_since: (ServedConfigs? replaced_configs) -> ConfigsUpdatedEvent
-
-        def config_keys: () -> Array[String]
-
         private
+
+        def keys_of_configs_using_any_segment_of: (Array[String] segment_ids) -> Array[String]
 
         def evaluation_of: (Connection::ConfigDefinition definition, ConfigRead config_read) -> ConfigEvaluation
 

@@ -18,6 +18,10 @@ module ConfigDirector
           end
         end
 
+        def uses_any_segment_of?(_segment_ids)
+          false
+        end
+
         private
 
         def trait_of(context)

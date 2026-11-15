@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../support/sdk_server_serving_the_sample_configs"
+
 RSpec.describe ConfigDirector::Context do
   it "holds what it was built with" do
     context = described_class.new(id: "user-123", kind: "user", name: "Ada", traits: { "plan" => "pro" },
@@ -137,9 +139,9 @@ RSpec.describe ConfigDirector::Context do
 end
 
 RSpec.describe "A context's traits and id in targeting rules" do
-  let(:client) do
-    ConfigDirector.create_client("server-sdk-key", logger: Logger.new(IO::NULL)).tap(&:init)
-  end
+  include_context "with an SDK server that serves the sample configs"
+
+  let(:client) { client_of_the_sample_configs(logger: Logger.new(IO::NULL)).tap(&:init) }
 
   it "matches a targeting rule on a trait given with a Symbol key" do
     context = ConfigDirector::Context.new(traits: { plan: "pro" })

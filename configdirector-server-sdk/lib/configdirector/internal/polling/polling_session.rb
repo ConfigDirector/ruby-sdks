@@ -21,7 +21,7 @@ module ConfigDirector
           what_follows = answer.what_follows
 
           case what_follows
-          when :delivery then deliver(answer, deliver_payload_text)
+          when :delivery then what_follows = deliver(answer, deliver_payload_text)
           when :no_delivery then nil
           when :error_log then log_the_failure_of(answer)
           when :end_of_polling then log_and_report_the_unrecoverable_error_of(answer, report_unrecoverable_error)
@@ -60,8 +60,10 @@ module ConfigDirector
         def deliver(answer, deliver_payload_text)
           deliver_payload_text.call(answer.payload_text.to_s)
           @last_update_timestamp = answer.timestamp || @last_update_timestamp
+          :delivery
         rescue StandardError => e
           log_the_failure_of(PollAnswer.unreadable("#{e.class}: #{e.message.inspect}"))
+          :error_log
         end
 
         def log_the_failure_of(answer)

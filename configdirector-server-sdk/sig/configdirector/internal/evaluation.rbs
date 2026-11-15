@@ -11,6 +11,8 @@ module ConfigDirector
 
       interface _Condition
         def holds_for?: (EvaluationContext context, segments segments) -> bool
+
+        def uses_any_segment_of?: (Array[String] segment_ids) -> bool
       end
 
       class EvaluationContext < Data
@@ -52,6 +54,8 @@ module ConfigDirector
 
         def holds_for?: (EvaluationContext context, segments _segments) -> bool
 
+        def uses_any_segment_of?: (Array[String] _segment_ids) -> bool
+
         private
 
         def trait_of: (EvaluationContext context) -> json_value
@@ -66,6 +70,8 @@ module ConfigDirector
         def self.new: (operator: String, segment_id: String) -> instance
 
         def holds_for?: (EvaluationContext context, segments segments) -> bool
+
+        def uses_any_segment_of?: (Array[String] segment_ids) -> bool
       end
 
       class Segment < Data
@@ -139,6 +145,8 @@ module ConfigDirector
         ) -> instance
 
         def serve: (String config_id, EvaluationContext context, segments segments) -> (ServedValue | fall_through)
+
+        def uses_any_segment_of?: (Array[String] segment_ids) -> bool
 
         private
 

@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 require_relative "../support/recording_logger"
+require_relative "../support/sdk_server_serving_the_sample_configs"
 
 RSpec.describe "A client's watches" do
+  include_context "with an SDK server that serves the sample configs"
+
   let(:logger) { RecordingLogger.new }
-  let(:client) { ConfigDirector.create_client("server-sdk-key", logger: logger) }
+  let(:client) { client_of_the_sample_configs(logger: logger) }
 
   it "delivers the value to a watch registered before init during init" do
     values = []

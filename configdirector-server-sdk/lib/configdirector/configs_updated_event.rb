@@ -7,11 +7,12 @@ module ConfigDirector
     include Internal::ComparedByValue
 
     # @return [Array<String>] the keys of the configs the client received, in the order ConfigDirector sent
-    #   them
+    #   them, followed by the configs whose targeting rules use a segment the client received
     attr_reader :keys
 
-    # @return [Array<String>] the keys of the configs the client no longer serves because the values it
-    #   received left them out, in the order the client had them. It is empty when nothing was removed.
+    # @return [Array<String>] the keys of the configs the client no longer serves, because the values it
+    #   received left them out or because it could not read their new definition, in the order the client
+    #   had them. It is empty when nothing was removed.
     attr_reader :removed_keys
 
     # @param keys [Array<String>] the keys of the configs the client received

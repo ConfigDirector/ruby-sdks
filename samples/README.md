@@ -22,7 +22,6 @@ bundle install
 bundle exec puma
 ```
 
-> The SDK does not connect to ConfigDirector yet, so for now every sample serves the same fixed values whatever its
-> key. Once it does, the samples will need a real server SDK key to resolve configs. Without one the client will stay
-> not ready and every config will fall back to the in-code default value the sample passes in, which is also what a
-> production app sees when it cannot reach ConfigDirector.
+> The samples need a real server SDK key to resolve configs. Without one ConfigDirector refuses the connection, the
+> client stays not ready and every config falls back to the in-code default value the sample passes in, which is
+> also what a production app sees when it cannot reach ConfigDirector.

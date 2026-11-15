@@ -29,16 +29,6 @@ module ConfigDirector
     ?hooks: ClientHooks?
   ) -> ConfigDirectorClient
 
-  def self.client_on: (
-    Internal::Connection::_Connection[Internal::Connection::ServerSdkPayload] internal_connection,
-    Metadata metadata,
-    ConnectionOptions connection_options,
-    _Logger & Object logger,
-    ClientHooks hooks
-  ) -> ConfigDirectorClient
-
-  def self.warn_of_a_polling_interval_below_the_minimum: (ConnectionOptions connection, _Logger & Object logger) -> void
-
   class ConfigDirectorError < StandardError
   end
 
@@ -227,8 +217,10 @@ module ConfigDirector
   end
 
   class ConfigDirectorClient
-    @connection: Internal::Connection::_Connection[Internal::Connection::ServerSdkPayload]
-    @metadata: Metadata
+    WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE: Hash[String, String]
+
+    @connection: Internal::Connection::_Connection
+    @mode: String
     @timeout: Float
     @log: Internal::Logging::ClientLog
     @connection_lifecycle: Monitor
@@ -239,9 +231,9 @@ module ConfigDirector
     @config_reader: Internal::Client::ConfigReader
 
     def initialize: (
-      connection: Internal::Connection::_Connection[Internal::Connection::ServerSdkPayload],
+      connection: Internal::Connection::_Connection,
+      connection_options: ConnectionOptions,
       metadata: Metadata,
-      timeout: Float,
       logger: _Logger & Object,
       hooks: ClientHooks
     ) -> void
@@ -274,7 +266,7 @@ module ConfigDirector
 
     def raise_if_closed: () -> void
 
-    def open_the_connection_once: () -> void
+    def open_the_connection_once: () -> Symbol
 
     def warn_that_no_values_arrived_in_time: () -> void
   end

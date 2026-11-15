@@ -18,15 +18,12 @@ module ConfigDirector
         end
 
         def open(report_unrecoverable_error:, &deliver_payload_text)
-          return if @session.poll(report_unrecoverable_error, deliver_payload_text) == :end_of_polling
-
-          @lock.synchronize do
-            return if @closed
-
-            @polling_thread = StoppableThread.start("configdirector-polling") do
-              @session.poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
-            end
+          what_follows_the_first_poll = @session.poll(report_unrecoverable_error, deliver_payload_text)
+          unless what_follows_the_first_poll == :end_of_polling
+            poll_on_every_interval_unless_closed(report_unrecoverable_error, deliver_payload_text)
           end
+
+          what_follows_the_first_poll
         end
 
         def close
@@ -38,6 +35,18 @@ module ConfigDirector
 
           polling_thread.stop
           polling_thread.join_within(SECONDS_CLOSE_WAITS_FOR_THE_THREAD)
+        end
+
+        private
+
+        def poll_on_every_interval_unless_closed(report_unrecoverable_error, deliver_payload_text)
+          @lock.synchronize do
+            return if @closed
+
+            @polling_thread = StoppableThread.start("configdirector-polling") do
+              @session.poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+            end
+          end
         end
       end
     end

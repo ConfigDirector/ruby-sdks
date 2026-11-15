@@ -5,7 +5,8 @@ require "configdirector"
 first_event_delivered = Queue.new
 transport = ConfigDirector::Internal::Streaming::StreamingTransport.new(
   endpoint: ConfigDirector::Internal::Streaming::StreamEndpoint.new(
-    url: ARGV.fetch(0), server_sdk_key: "server-sdk-key", metadata: ConfigDirector::Metadata.new
+    url: ARGV.fetch(0), server_sdk_key: "server-sdk-key", metadata: ConfigDirector::Metadata.new,
+    sdk_identity: ConfigDirector::Internal::Identity::SdkIdentity.of_the_server_sdk
   ),
   logger: Logger.new(IO::NULL)
 )

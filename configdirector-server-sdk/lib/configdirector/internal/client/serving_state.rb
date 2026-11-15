@@ -4,10 +4,13 @@ module ConfigDirector
   module Internal
     module Client
       class ServingState
-        def initialize
+        def initialize(metadata)
+          @metadata = metadata
           @lock = Mutex.new
           @first_values_no_longer_awaited = ConditionVariable.new
           @served_configs = nil
+          @thread_delivering_the_first_values = nil
+          @first_values_delivered = false
           @closed = false
           @connection_failed_unrecoverably = false
         end
@@ -20,15 +23,24 @@ module ConfigDirector
           @lock.synchronize { @closed }
         end
 
-        def serve(served_configs)
+        def serve(payload)
           @lock.synchronize do
             arrival = arrival_of_values
-            replaced_configs = @served_configs
-            unless arrival == :after_close
-              @served_configs = served_configs
-              @first_values_no_longer_awaited.broadcast
-            end
-            [arrival, replaced_configs]
+            replaced_configs = @served_configs || ServedConfigs.without_definitions(@metadata)
+            served_configs = replaced_configs.after(payload)
+            update = served_configs.update_since(replaced_configs, payload)
+            @served_configs = served_configs unless arrival == :after_close
+            @thread_delivering_the_first_values = Thread.current if arrival == :first_values
+
+            [arrival, update]
+          end
+        end
+
+        def end_the_delivery_of_the_first_values
+          @lock.synchronize do
+            @first_values_delivered = true
+            @thread_delivering_the_first_values = nil
+            @first_values_no_longer_awaited.broadcast
           end
         end
 
@@ -47,14 +59,14 @@ module ConfigDirector
           end
         end
 
-        def timed_out_waiting_for_the_first_values?(timeout_seconds)
+        def timed_out_waiting_for_the_first_values?(give_up_at_monotonic_seconds)
           @lock.synchronize do
-            give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout_seconds
             loop do
-              return false if @closed || !@served_configs.nil? || @connection_failed_unrecoverably
+              return false if @closed || @connection_failed_unrecoverably
+              return false if @first_values_delivered || @thread_delivering_the_first_values.equal?(Thread.current)
 
-              remaining_seconds = give_up_at - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-              return true unless remaining_seconds.positive?
+              remaining_seconds = give_up_at_monotonic_seconds - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+              return @served_configs.nil? unless remaining_seconds.positive?
 
               @first_values_no_longer_awaited.wait(@lock, remaining_seconds)
             end

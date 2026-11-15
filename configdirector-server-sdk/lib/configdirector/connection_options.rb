@@ -12,7 +12,8 @@ module ConfigDirector
     # @return [Integer, Float] how often a polling client asks for new values, in seconds
     attr_reader :polling_interval
 
-    # @return [Integer, Float] how long {ConfigDirectorClient#init} waits for the first values, in seconds
+    # @return [Integer, Float] how long {ConfigDirectorClient#init} waits for the first values, in seconds. In
+    #   polling mode it is also how long each request for values may take.
     attr_reader :timeout
 
     # @return [String] the base URL of the ConfigDirector SDK server
@@ -32,7 +33,7 @@ module ConfigDirector
     #   to 300 seconds. The minimum is 60 seconds: in polling mode a lower value is raised to 60 and a warning
     #   is logged.
     # @param timeout [Integer, Float] how long {ConfigDirectorClient#init} waits for the first values, in seconds.
-    #   Defaults to 3 seconds.
+    #   Defaults to 3 seconds. In polling mode it is also how long each request for values may take.
     # @param url [String] the base URL of the ConfigDirector SDK server. Change it only to connect through
     #   a proxy.
     # @param file [String, nil] the path of a JSON file holding the values an offline client serves

@@ -14,6 +14,10 @@ module ConfigDirector
           end
         end
 
+        def uses_any_segment_of?(segment_ids)
+          type == "conditional" && conditions.any? { |condition| condition.uses_any_segment_of?(segment_ids) }
+        end
+
         private
 
         def serve_when_every_condition_holds(config_id, context, segments)

@@ -4,8 +4,7 @@ module ConfigDirector
   module Internal
     module Client
       class ConnectionIntake
-        def initialize(metadata:, serving_state:, event_handlers:, watches:, config_reader:, log:)
-          @metadata = metadata
+        def initialize(serving_state:, event_handlers:, watches:, config_reader:, log:)
           @serving_state = serving_state
           @event_handlers = event_handlers
           @watches = watches
@@ -14,16 +13,13 @@ module ConfigDirector
         end
 
         def take_in(payload)
-          served_configs = ServedConfigs.new(payload: payload, metadata: @metadata)
-          arrival, replaced_configs = @serving_state.serve(served_configs)
+          warn_of_the_definitions_skipped_in(payload)
+          arrival, update = @serving_state.serve(payload)
 
           case arrival
           when :after_close then nil
-          when :newer_values then deliver_the_update(served_configs.update_since(replaced_configs))
-          when :first_values
-            deliver_the_update(served_configs.update_since(replaced_configs))
-            @event_handlers.deliver_client_ready
-            @log.debug { "Received initial payload from the server, client is ready" }
+          when :newer_values then deliver_the_update(update)
+          when :first_values then deliver_the_first_values(update)
           end
         end
 
@@ -33,6 +29,23 @@ module ConfigDirector
         end
 
         private
+
+        def warn_of_the_definitions_skipped_in(payload)
+          payload.unreadable_configs.each do |config_key, cause|
+            @log.warn("Skipping the config '#{config_key}', its definition could not be read: #{cause}")
+          end
+          payload.unreadable_segments.each do |segment_id, cause|
+            @log.warn("Skipping the segment '#{segment_id}', its definition could not be read: #{cause}")
+          end
+        end
+
+        def deliver_the_first_values(update)
+          deliver_the_update(update)
+          @event_handlers.deliver_client_ready
+          @log.debug { "Received initial payload from the server, client is ready" }
+        ensure
+          @serving_state.end_the_delivery_of_the_first_values
+        end
 
         def deliver_the_update(update)
           @event_handlers.deliver_configs_updated(update)

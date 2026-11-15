@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
+require_relative "../support/sdk_server_serving_the_sample_configs"
+
 RSpec.describe "The default logger" do
+  include_context "with an SDK server that serves the sample configs"
+
   def polling_every_30_seconds
     ConfigDirector::ConnectionOptions.new(mode: "polling", polling_interval: 30)
   end
@@ -21,7 +25,7 @@ RSpec.describe "The default logger" do
   end
 
   it "writes nothing below a warning" do
-    expect { ConfigDirector.create_client("server-sdk-key").tap(&:init).get_value("integer-config", 10) }
+    expect { client_of_the_sample_configs.tap(&:init).get_value("integer-config", 10) }
       .not_to output.to_stderr
   end
 
@@ -31,17 +35,17 @@ RSpec.describe "The default logger" do
   end
 
   it "writes debug lines when the log level is :debug" do
-    expect { ConfigDirector.create_client("server-sdk-key", log_level: :debug).tap(&:init) }
+    expect { client_of_the_sample_configs(log_level: :debug).tap(&:init) }
       .to output(/^\[ConfigDirector:ruby-server-sdk\] DEBUG: \[ConfigDirectorClient\] /).to_stderr
   end
 
   it "takes the log level as a String" do
-    expect { ConfigDirector.create_client("server-sdk-key", log_level: "debug").tap(&:init) }
+    expect { client_of_the_sample_configs(log_level: "debug").tap(&:init) }
       .to output(/DEBUG/).to_stderr
   end
 
   it "takes the log level as a Logger constant" do
-    expect { ConfigDirector.create_client("server-sdk-key", log_level: Logger::DEBUG).tap(&:init) }
+    expect { client_of_the_sample_configs(log_level: Logger::DEBUG).tap(&:init) }
       .to output(/DEBUG/).to_stderr
   end
 

@@ -34,9 +34,8 @@ module ConfigDirector
     #   client receives values, the first time included
     # @param config_evaluated [#call, Array<#call>, nil] called with a {ConfigEvaluatedEvent} each time a
     #   config is evaluated, before the read returns
-    # @param connection_error [#call, Array<#call>, nil] to be called with a {ConnectionErrorEvent} when the
-    #   connection to ConfigDirector fails and will not be retried. The client does not connect to
-    #   ConfigDirector yet, so nothing calls them.
+    # @param connection_error [#call, Array<#call>, nil] called with a {ConnectionErrorEvent} when
+    #   ConfigDirector refuses the connection and the client will not try again
     def initialize(client_ready: nil, configs_updated: nil, config_evaluated: nil, connection_error: nil)
       @client_ready = Internal::UnchangeableCopy.of(client_ready)
       @configs_updated = Internal::UnchangeableCopy.of(configs_updated)

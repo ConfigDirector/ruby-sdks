@@ -16,6 +16,10 @@ module ConfigDirector
           else false
           end
         end
+
+        def uses_any_segment_of?(segment_ids)
+          segment_ids.include?(segment_id)
+        end
       end
     end
   end

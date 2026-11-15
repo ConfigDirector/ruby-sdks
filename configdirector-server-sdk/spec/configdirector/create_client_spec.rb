@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "../support/recording_logger"
+require_relative "../support/client_of_the_scripted_sdk_server"
 
 RSpec.describe "Creating a client" do
-  let(:logger) { RecordingLogger.new }
+  include_context "with a client of the scripted SDK server"
 
   def polling(polling_interval)
     ConfigDirector::ConnectionOptions.new(mode: "polling", polling_interval: polling_interval)
@@ -21,15 +21,16 @@ RSpec.describe "Creating a client" do
       "server-sdk-key",
       metadata: ConfigDirector::Metadata.new(app_name: "storefront", app_version: "1.4.0"),
       connection: ConfigDirector::ConnectionOptions.new(
-        mode: "polling", polling_interval: 120, timeout: 5, url: "http://localhost:8080"
+        mode: "polling", polling_interval: 120, timeout: 5, url: sdk_server.url
       ),
       logger: logger,
       log_level: :debug,
       telemetry: ConfigDirector::TelemetryOptions.new(event_queue_limit: 100_000, flush_interval: 0.5),
       hooks: ConfigDirector::ClientHooks.new
     )
+    clients_created << client
 
-    client.init
+    initialize_with_a_first_poll_answered(client, status: 200, body: full_payload_text)
 
     expect(client.ready?).to be(true)
     expect(logger.messages_at(:warn)).to be_empty

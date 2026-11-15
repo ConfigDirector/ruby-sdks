@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
 require_relative "../support/recording_logger"
+require_relative "../support/sdk_server_serving_the_sample_configs"
 
 RSpec.describe "Reading a config" do
-  let(:client) { ConfigDirector.create_client("server-sdk-key", logger: RecordingLogger.new) }
+  include_context "with an SDK server that serves the sample configs"
+
+  let(:client) { client_of_the_sample_configs(logger: RecordingLogger.new) }
   let(:identified_context) { ConfigDirector::Context.new(id: "user-123") }
 
   before { client.init }
@@ -78,8 +81,8 @@ RSpec.describe "Reading a config" do
   end
 
   it "returns the value of the targeting rule that matches the application's metadata" do
-    beta_client = ConfigDirector.create_client(
-      "server-sdk-key", metadata: ConfigDirector::Metadata.new(app_name: "beta-app"), logger: RecordingLogger.new
+    beta_client = client_of_the_sample_configs(
+      metadata: ConfigDirector::Metadata.new(app_name: "beta-app"), logger: RecordingLogger.new
     )
     beta_client.init
 
@@ -238,7 +241,7 @@ RSpec.describe "Reading a config" do
         false
       end
     end.new
-    quiet_client = ConfigDirector.create_client("server-sdk-key", logger: logger_at_warn_level)
+    quiet_client = client_of_the_sample_configs(logger: logger_at_warn_level)
     quiet_client.init
 
     quiet_client.get_value("integer-config", 10)
