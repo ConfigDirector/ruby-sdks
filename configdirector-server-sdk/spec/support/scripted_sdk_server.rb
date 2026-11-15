@@ -40,7 +40,7 @@ class ScriptedSdkServer
         sleep(seconds_between_pieces)
       end
       @socket.close
-      :read_whole
+      :sent_whole
     rescue IOError, SystemCallError
       :cut_off_by_the_client
     end

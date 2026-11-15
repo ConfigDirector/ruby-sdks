@@ -44,10 +44,15 @@ module ConfigDirector
           mantissa, exponent = number.to_s.split("e")
           whole, fraction = mantissa.to_s.split(".")
           digits = "#{whole}#{fraction}"
-          significant_digits = digits.sub(/\A0+/, "")
-          leading_zero_count = digits.length - significant_digits.length
+          leading_zeros = leading_zeros_of(digits)
+          trailing_zeros = leading_zeros_of(digits.reverse)
+          significant_digits = digits.delete_prefix(leading_zeros).delete_suffix(trailing_zeros)
 
-          [significant_digits.sub(/0+\z/, ""), whole.to_s.length + exponent.to_i - leading_zero_count]
+          [significant_digits, whole.to_s.length + exponent.to_i - leading_zeros.length]
+        end
+
+        def self.leading_zeros_of(text)
+          text.each_char.take_while { |character| character == "0" }.join
         end
 
         def self.exponent_form(digits, exponent)
@@ -57,7 +62,8 @@ module ConfigDirector
         end
 
         private_constant :LAST_POINT_POSITION_SPELLED_OUT, :FIRST_POINT_POSITION_SPELLED_OUT
-        private_class_method :of_float, :of_positive_float, :shortest_digits_and_point_position, :exponent_form
+        private_class_method :of_float, :of_positive_float, :shortest_digits_and_point_position, :leading_zeros_of,
+                             :exponent_form
       end
     end
   end

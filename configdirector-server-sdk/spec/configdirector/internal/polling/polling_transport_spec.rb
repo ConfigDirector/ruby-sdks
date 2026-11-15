@@ -92,6 +92,10 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     Array.new(count) { payloads_delivered.pop(timeout: 5) }
   end
 
+  def mebibytes_of_padding(count)
+    Array.new(count) { "x" * 1_048_576 }
+  end
+
   def json_object_of_bytes(bytes)
     bytes_around_the_padding = '{"padding":""}'.bytesize
 
@@ -440,7 +444,7 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     opening = start_opening_a_new_transport
 
     how_far_the_answer_was_read = sdk_server.next_poll_request.answer_in_pieces(
-      status: 200, pieces: [json_object_of_bytes(67_108_864)]
+      status: 200, pieces: ['{"padding":"', *mebibytes_of_padding(64), '"}']
     )
     opening.join(5)
 
@@ -746,7 +750,7 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     opening = start_opening_a_new_transport
 
     how_far_the_answer_was_read = sdk_server.next_poll_request.answer_in_pieces(
-      status: 401, pieces: ["x" * 67_108_864]
+      status: 401, pieces: mebibytes_of_padding(64)
     )
     opening.join(5)
 

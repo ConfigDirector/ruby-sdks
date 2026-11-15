@@ -196,6 +196,8 @@ module ConfigDirector
 
         def self.shortest_digits_and_point_position: (Float number) -> [String, Integer]
 
+        def self.leading_zeros_of: (String text) -> String
+
         def self.exponent_form: (String digits, Integer exponent) -> String
       end
 

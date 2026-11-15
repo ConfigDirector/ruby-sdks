@@ -75,7 +75,9 @@ directory and the gem does not ship it. Delete a file there once an `rbs` releas
 
 The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.rb`: a real HTTP server on a free
 local port that holds each request until the example answers it, opens an event stream on it or drops it, and
-is stopped when the example ends. No spec stubs `net/http`.
+is stopped when the example ends. No spec stubs `net/http`. An example that needs to know how far the SDK read an
+answer sends it in pieces: Windows takes one large write whole, whatever the other side reads, so only a later
+write meets the connection the SDK closed.
 
 One example of each transport does not run on Windows: the one that connects to an address that never answers.
 Ruby on Windows calls Winsock's blocking `connect` (`rb_w32_connect` in Ruby's `win32/win32.c`), which neither
