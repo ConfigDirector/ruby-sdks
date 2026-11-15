@@ -52,7 +52,7 @@ module ConfigDirector
           return StreamEnd.unreachable(cause, last_event_id: @parser.last_event_id) if answer.nil?
           return dropped_stream_end_caused_by(cause) if StreamEnd.stream_opened_by?(status_of(answer))
 
-          seconds_named_by_retry_after = RetryAfterHeader.seconds_to_wait(answer["Retry-After"], Time.now)
+          seconds_named_by_retry_after = Connection::RetryAfterHeader.seconds_to_wait(answer["Retry-After"], Time.now)
           StreamEnd.answered_without_a_stream(
             status_of(answer), seconds_named_by_retry_after: seconds_named_by_retry_after,
                                last_event_id: @parser.last_event_id

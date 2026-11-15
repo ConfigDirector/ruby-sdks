@@ -6,6 +6,7 @@ require "socket"
 class ScriptedSdkServer
   STREAM_PATH = "/server/sse/v1"
   HEARTBEAT_PATH = "/server/heartbeat/v1"
+  POLLING_PATH = "/server/polling/v1"
 
   class HeldRequest
     attr_reader :path, :headers, :body
@@ -21,10 +22,32 @@ class ScriptedSdkServer
       JSON.parse(body)
     end
 
-    def answer(status:, headers: {})
-      header_lines = headers.merge("Content-Length" => "0", "Connection" => "close")
-                            .map { |name, value| "#{name}: #{value}\r\n" }
-      @socket.write("HTTP/1.1 #{status} Scripted\r\n#{header_lines.join}\r\n")
+    def answer(status:, headers: {}, body: "")
+      write_answer_head(status, headers.merge("Content-Length" => body.bytesize.to_s))
+      @socket.write(body)
+      @socket.close
+    end
+
+    def answer_with_a_body_that_never_arrives(status:, content_length:)
+      write_answer_head(status, "Content-Length" => content_length.to_s)
+    end
+
+    def answer_in_pieces(status:, pieces:, seconds_between_pieces: 0, &after_each_piece)
+      write_answer_head(status, "Content-Length" => pieces.sum(&:bytesize).to_s)
+      pieces.each do |piece|
+        @socket.write(piece)
+        after_each_piece&.call
+        sleep(seconds_between_pieces)
+      end
+      @socket.close
+      :read_whole
+    rescue IOError, SystemCallError
+      :cut_off_by_the_client
+    end
+
+    def answer_with_a_body_cut_off(status:, body_sent:, content_length:)
+      write_answer_head(status, "Content-Length" => content_length.to_s)
+      @socket.write(body_sent)
       @socket.close
     end
 
@@ -48,6 +71,21 @@ class ScriptedSdkServer
     def drop
       @socket.close
     end
+
+    private
+
+    def write_answer_head(status, headers)
+      header_lines = headers.merge("Connection" => "close").map { |name, value| "#{name}: #{value}\r\n" }
+      @socket.write("HTTP/1.1 #{status} Scripted\r\n#{header_lines.join}\r\n")
+    end
+  end
+
+  def self.url_nothing_listens_on
+    listener = TCPServer.new("127.0.0.1", 0)
+    port = listener.addr[1]
+    listener.close
+
+    "http://127.0.0.1:#{port}"
   end
 
   def initialize
@@ -82,6 +120,10 @@ class ScriptedSdkServer
 
   def next_heartbeat_request(within: 5)
     next_request_to(HEARTBEAT_PATH, within: within)
+  end
+
+  def next_poll_request(within: 5)
+    next_request_to(POLLING_PATH, within: within)
   end
 
   def receives_a_request_to?(path, within:)

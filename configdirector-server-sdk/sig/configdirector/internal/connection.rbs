@@ -75,6 +75,28 @@ module ConfigDirector
 
         def seconds: () -> seconds
       end
+
+      module SdkIdentity
+        NAME: String
+
+        def self.user_agent: () -> String
+
+        def self.meta_context_of_an_application_with: (Metadata metadata) -> Hash[Symbol, String]
+      end
+
+      module JsonPostRequest
+        def self.to: (URI::Generic uri, **untyped body) -> Net::HTTP::Post
+      end
+
+      module HttpSession
+        def self.to: (URI::Generic uri) -> Net::HTTP
+      end
+
+      module RetryAfterHeader
+        ASCII_DIGITS: Regexp
+
+        def self.seconds_to_wait: (String? header_value, Time now) -> seconds?
+      end
     end
   end
 end

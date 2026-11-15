@@ -41,8 +41,6 @@ module ConfigDirector
       end
 
       class StreamEndpoint
-        SDK_NAME: String
-
         @stream_uri: URI::Generic
         @heartbeat_uri: URI::Generic
         @server_sdk_key: String
@@ -55,16 +53,6 @@ module ConfigDirector
         def stream_request: (session_id: String, last_event_id: String) -> Net::HTTP::Post
 
         def heartbeat_request: (session_id: String) -> Net::HTTP::Post
-
-        private
-
-        def json_post_to: (URI::Generic uri, **untyped body) -> Net::HTTP::Post
-      end
-
-      module RetryAfterHeader
-        ASCII_DIGITS: Regexp
-
-        def self.seconds_to_wait: (String? header_value, Time now) -> seconds?
       end
 
       module ReconnectionDelay

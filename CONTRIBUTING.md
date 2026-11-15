@@ -69,17 +69,20 @@ ignored. `make format` applies RuboCop's safe corrections. RSpec fails a run on 
 warning or deprecation, and on an example left focused, skipped or pending.
 
 `sig_missing_from_rbs/` in the SDK holds signatures of Ruby's own classes that the released `rbs` gem lacks: the
-block of `Thread.handle_interrupt`, which `rbs` has on its main branch and 4.2.0 does not. Steep reads that
+block of `Thread.handle_interrupt`, which `rbs` has on its main branch and 4.2.0 does not, and
+`Net::HTTP#ignore_eof`, which [ruby/rbs#3290](https://github.com/ruby/rbs/pull/3290) adds. Steep reads that
 directory and the gem does not ship it. Delete a file there once an `rbs` release has its signature.
 
 The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.rb`: a real HTTP server on a free
 local port that holds each request until the example answers it, opens an event stream on it or drops it, and
 is stopped when the example ends. No spec stubs `net/http`.
 
-One example of the streaming transport does not run on Windows: the one that connects to an address that never
-answers. Ruby on Windows calls Winsock's blocking `connect` (`rb_w32_connect` in Ruby's `win32/win32.c`), which
-neither `Net::HTTP#open_timeout` nor `Thread#raise` can end, so there the attempt lasts until Windows gives up on
-it, and a `close` during it returns after its 5 seconds while the streaming thread ends when the attempt does.
+One example of each transport does not run on Windows: the one that connects to an address that never answers.
+Ruby on Windows calls Winsock's blocking `connect` (`rb_w32_connect` in Ruby's `win32/win32.c`), which neither
+`Net::HTTP#open_timeout` nor `Thread#raise` can end, so there the attempt lasts until Windows gives up on it. A
+`close` of the streaming transport during it returns after its 5 seconds while the streaming thread ends when the
+attempt does, and a poll lasts as long as the attempt, the first poll included, which runs on the thread that
+opens the polling transport.
 
 `make verify-ruby` prints the version of the Ruby that runs it and fails when that release lacks the fixes above;
 every CI job runs it first. `make verify-lock` fails when a `Gemfile.lock` no longer matches its `Gemfile` and

@@ -1,11 +1,17 @@
 # frozen_string_literal: true
 
 require "rbconfig"
-require "socket"
+require_relative "../../../support/elapsed_seconds"
 require_relative "../../../support/recording_logger"
 require_relative "../../../support/scripted_sdk_server"
+require_relative "../../../support/sdk_threads"
+require_relative "../../../support/spawned_process"
 
 RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
+  include ElapsedSeconds
+  include SdkThreads
+  include SpawnedProcess
+
   let(:logger) { RecordingLogger.new }
   let(:sdk_server) { ScriptedSdkServer.new }
   let(:event_data_delivered) { Queue.new }
@@ -65,42 +71,6 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
 
   def answer_stream_requests_with_status(status, times:)
     times.times { sdk_server.next_stream_request.answer(status: status) }
-  end
-
-  def sdk_threads_alive
-    Thread.list.select { |thread| thread.alive? && thread.name.to_s.start_with?("configdirector-") }
-  end
-
-  def wait_until_no_sdk_thread_is_alive
-    give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
-    sleep(0.01) while sdk_threads_alive.any? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < give_up_at
-  end
-
-  def seconds_taken
-    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    yield
-    Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
-  end
-
-  def exit_status_within(seconds, process_id)
-    give_up_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + seconds
-    while Process.clock_gettime(Process::CLOCK_MONOTONIC) < give_up_at
-      _process_id, exit_status = Process.wait2(process_id, Process::WNOHANG)
-      return exit_status unless exit_status.nil?
-
-      sleep(0.05)
-    end
-    Process.kill("KILL", process_id)
-    Process.wait(process_id)
-    nil
-  end
-
-  def url_nothing_listens_on
-    listener = TCPServer.new("127.0.0.1", 0)
-    port = listener.addr[1]
-    listener.close
-
-    "http://127.0.0.1:#{port}"
   end
 
   it "delivers the data of the first event the stream carries" do
@@ -467,7 +437,7 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
   end
 
   it "keeps trying to connect to an SDK server that does not answer" do
-    open_transport(url: url_nothing_listens_on)
+    open_transport(url: ScriptedSdkServer.url_nothing_listens_on)
 
     expect(next_pauses_before_reconnecting(3)).to eq([1.5, 3, 6])
     expect(unrecoverable_errors).to be_empty

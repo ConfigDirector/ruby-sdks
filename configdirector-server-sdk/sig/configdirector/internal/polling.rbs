@@ -1,0 +1,209 @@
+module ConfigDirector
+  module Internal
+    module Polling
+      class PollTiming < Data
+        attr_reader seconds_between_polls: seconds
+        attr_reader seconds_a_poll_may_take: seconds
+        attr_reader pause_before_the_next_poll: ^(seconds seconds) -> void
+        attr_reader monotonic_seconds: ^() -> Float
+
+        def self.new: (
+          seconds_between_polls: seconds,
+          seconds_a_poll_may_take: seconds,
+          pause_before_the_next_poll: ^(seconds seconds) -> void,
+          monotonic_seconds: ^() -> Float
+        ) -> instance
+
+        def self.on_the_clock_of_the_process: (
+          seconds_between_polls: seconds,
+          seconds_a_poll_may_take: seconds
+        ) -> PollTiming
+      end
+
+      class PollDeadline
+        @monotonic_seconds: ^() -> Float
+        @passes_at: Float
+
+        attr_reader seconds_a_poll_may_take: seconds
+
+        def initialize: (PollTiming timing) -> void
+
+        def seconds_left: () -> Float
+      end
+
+      module RefusalDetail
+        MAXIMUM_BYTES: Integer
+
+        def self.in: (String answer_body, String server_sdk_key) -> String
+
+        def self.written_forms_of: (String server_sdk_key) -> Array[String]
+      end
+
+      type poll_answer_kind = :payload
+                            | :unchanged
+                            | :unanswered
+                            | :timed_out
+                            | :refused
+                            | :throttled
+                            | :unreadable
+                            | :refused_unrecoverably
+
+      class PollAnswer < Data
+        WHAT_FOLLOWS_BY_KIND: Hash[Symbol, Symbol]
+        SENT_AGAIN_AT_ONCE_BY_KIND: Hash[Symbol, bool]
+        LONGEST_WAIT_THE_SERVER_CAN_ASK_FOR_SECONDS: Integer
+
+        attr_reader kind: poll_answer_kind
+        attr_reader payload_text: String?
+        attr_reader timestamp: String?
+        attr_reader failure_message: String?
+        attr_reader status: Integer?
+        attr_reader seconds_named_by_retry_after: seconds?
+
+        def self.new: (
+          kind: poll_answer_kind,
+          payload_text: String?,
+          timestamp: String?,
+          failure_message: String?,
+          status: Integer?,
+          seconds_named_by_retry_after: seconds?
+        ) -> instance
+
+        def self.payload: (String payload_text, timestamp: String?) -> PollAnswer
+
+        def self.unchanged: () -> PollAnswer
+
+        def self.unanswered: (String cause) -> PollAnswer
+
+        def self.timed_out: (seconds seconds_a_poll_may_take) -> PollAnswer
+
+        def self.refused: (Integer status) -> PollAnswer
+
+        def self.throttled: (Integer status, seconds? seconds_named_by_retry_after) -> PollAnswer
+
+        def self.refused_unrecoverably: (Integer status, detail: String) -> PollAnswer
+
+        def self.unreadable: (String cause) -> PollAnswer
+
+        def self.failed: (
+          poll_answer_kind kind,
+          String failure_message,
+          ?status: Integer?,
+          ?seconds_named_by_retry_after: seconds?
+        ) -> PollAnswer
+
+        def what_follows: () -> Symbol
+
+        def sent_again_at_once?: () -> bool
+
+        def seconds_before_the_next_poll: (seconds seconds_between_polls) -> seconds
+      end
+
+      class PollingEndpoint
+        @poll_uri: URI::Generic
+        @server_sdk_key: String
+        @meta_context: Hash[Symbol, String]
+
+        def initialize: (url: String, server_sdk_key: String, metadata: Metadata) -> void
+
+        def http_session: () -> Net::HTTP
+
+        def json_post_of_a_poll: (session_id: String, last_update_timestamp: String?) -> Net::HTTP::Post
+
+        def refusal_detail_in: (String answer_body) -> String
+      end
+
+      class PollRequest
+        MAXIMUM_BODY_MEBIBYTES: Integer
+        MAXIMUM_BODY_BYTES: Integer
+        PAYLOAD_STATUS: Integer
+        SUCCESS_STATUSES: Range[Integer]
+        TOO_MANY_REQUESTS_STATUS: Integer
+        CLIENT_ERROR_STATUSES: Range[Integer]
+
+        @endpoint: PollingEndpoint
+        @session_id: String
+        @last_update_timestamp: String?
+        @deadline: PollDeadline
+        @http_session: Net::HTTP
+        @body_text_read: String
+
+        def initialize: (
+          endpoint: PollingEndpoint,
+          session_id: String,
+          last_update_timestamp: String?,
+          deadline: PollDeadline
+        ) -> void
+
+        def answer: () -> PollAnswer
+
+        private
+
+        def response_to_the_post: () -> Net::HTTPResponse
+
+        def json_post: () -> Net::HTTP::Post
+
+        def body_text_read_until_over_the_limit: (Net::HTTPResponse response) -> String
+
+        def answer_in: (Net::HTTPResponse response) -> PollAnswer
+
+        def answer_holding_the_payload: () -> PollAnswer
+
+        def json_object_in: (String text) -> Hash[String, untyped]?
+
+        def retry_after_seconds_in: (Net::HTTPResponse response) -> seconds?
+
+        def refusal_detail: () -> String
+      end
+
+      class PollingSession
+        @endpoint: PollingEndpoint
+        @timing: PollTiming
+        @log: Logging::ClientLog
+        @session_id: String
+        @last_update_timestamp: String?
+        @seconds_before_the_next_poll: seconds
+
+        def initialize: (endpoint: PollingEndpoint, timing: PollTiming, log: Logging::ClientLog) -> void
+
+        def poll: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(String payload_text) -> void deliver_payload_text
+        ) -> Symbol
+
+        def poll_on_every_interval: (
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
+          ^(String payload_text) -> void deliver_payload_text
+        ) -> void
+
+        private
+
+        def answer_retried_once_when_unanswered: () -> PollAnswer
+
+        def answer_before: (PollDeadline deadline) -> PollAnswer
+
+        def deliver: (PollAnswer answer, ^(String payload_text) -> void deliver_payload_text) -> void
+
+        def log_the_failure_of: (PollAnswer answer) -> void
+
+        def log_and_report_the_unrecoverable_error_of: (
+          PollAnswer answer,
+          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error
+        ) -> void
+      end
+
+      class PollingTransport
+        include Connection::_Connection[String]
+
+        SECONDS_CLOSE_WAITS_FOR_THE_THREAD: Integer
+
+        @session: PollingSession
+        @lock: Thread::Mutex
+        @closed: bool
+        @polling_thread: StoppableThread?
+
+        def initialize: (endpoint: PollingEndpoint, timing: PollTiming, logger: _Logger & Object) -> void
+      end
+    end
+  end
+end

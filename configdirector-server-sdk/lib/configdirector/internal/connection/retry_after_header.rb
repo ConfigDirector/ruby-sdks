@@ -4,7 +4,7 @@ require "time"
 
 module ConfigDirector
   module Internal
-    module Streaming
+    module Connection
       module RetryAfterHeader
         ASCII_DIGITS = /\A[0-9]+\z/
 
