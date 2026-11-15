@@ -121,9 +121,9 @@ module ConfigDirector
   class ConnectionErrorEvent
     include Internal::ComparedByValue
 
-    attr_reader error: Exception
+    attr_reader error: ConfigDirectorConnectionError
 
-    def initialize: (error: Exception) -> void
+    def initialize: (error: ConfigDirectorConnectionError) -> void
   end
 
   class Subscription

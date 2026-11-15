@@ -6,10 +6,11 @@ module ConfigDirector
   class ConnectionErrorEvent
     include Internal::ComparedByValue
 
-    # @return [Exception] why the connection failed
+    # @return [ConfigDirectorConnectionError] why the connection failed. Its +status+ is the HTTP status
+    #   ConfigDirector answered with.
     attr_reader :error
 
-    # @param error [Exception] why the connection failed
+    # @param error [ConfigDirectorConnectionError] why the connection failed
     def initialize(error:)
       @error = error
       freeze
