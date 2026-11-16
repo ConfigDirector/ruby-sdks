@@ -1,0 +1,388 @@
+module ConfigDirector
+  module Internal
+    module Telemetry
+      type wire_event = Hash[Symbol, untyped]
+
+      type report_answer_kind = :accepted | :refused | :refused_unrecoverably | :unanswered
+
+      type invalid_context_recording = :new_kind_sample
+                                     | :known_kind_sample
+                                     | :first_beyond_sample_limit
+                                     | :beyond_sample_limit
+
+      interface _ClientTelemetry
+        def record: (Client::EvaluatedRead evaluated_read) -> nil
+
+        def count_invalid_context: (String kind_sample) -> invalid_context_recording
+
+        def start_reporting: () -> nil
+
+        def restart_in_a_forked_process: (Symbol forked_through) -> nil
+
+        def close: () -> nil
+      end
+
+      interface _TelemetryOfAMode
+        def for_a_client_with: (
+          server_sdk_key: String,
+          metadata: Metadata,
+          connection_options: ConnectionOptions,
+          telemetry_options: TelemetryOptions,
+          sdk_identity: Identity::SdkIdentity,
+          logger: _Logger & Object
+        ) -> _ClientTelemetry
+      end
+
+      module ValueId
+        DIGEST_BYTES: Integer
+        BASE62_DIGITS: String
+        LENGTH: Integer
+
+        def self.of: (String text) -> String
+      end
+
+      module ReportedText
+        def self.of: (String text) -> String
+      end
+
+      module CompactJsonText
+        MOST_LEVELS_WRITTEN: Integer
+
+        def self.of: (untyped value) -> String
+
+        def self.text_inside: (untyped value, Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it) -> String
+
+        def self.number_text_of: (Integer | Float number) -> String
+
+        def self.container_text_inside: (
+          Array[untyped] | Hash[untyped, untyped] container,
+          Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it
+        ) -> String
+
+        def self.element_texts_of: (
+          Array[untyped] array,
+          Array[Array[untyped] | Hash[untyped, untyped]] containers_around_its_contents
+        ) -> Array[String]
+
+        def self.member_texts_of: (
+          Hash[untyped, untyped] hash,
+          Array[Array[untyped] | Hash[untyped, untyped]] containers_around_its_contents
+        ) -> Array[String]
+
+        def self.string_text_of: (String text) -> String
+      end
+
+      module ReportedValue
+        MAXIMUM_CHARACTERS_REPORTED_AS_TEXT: Integer
+        JSON_CONFIG_TYPE: String
+
+        def self.reported_by_the_value_id_sent_with_it?: (
+          config_value value,
+          String? config_type,
+          String? value_id_sent_with_the_value
+        ) -> bool
+
+        def self.of: (config_value value, String? config_type) -> Hash[Symbol, String]
+
+        def self.json_value?: (config_value value, String? config_type) -> bool
+      end
+
+      module ReportedTime
+        def self.of: (Time time) -> String
+      end
+
+      module AggregatedWireEntries
+        def self.of: (
+          Hash[wire_event, Integer] counts_by_wire_event,
+          counted_since: Time?,
+          counted_until: Time
+        ) -> Array[wire_event]
+      end
+
+      class ReportedContext < Data
+        KIND_OF_A_CONTEXT_WITHOUT_ONE: String
+
+        attr_reader kind: String
+        attr_reader identifier: String
+        attr_reader context: Context
+
+        def self.new: (kind: String, identifier: String, context: Context) -> instance
+
+        def self.of: (Context? context) -> ReportedContext?
+
+        def wire_context: () -> Hash[Symbol, untyped]
+      end
+
+      class ReportedEvaluation < Data
+        REQUESTED_TYPE_BY_IN_CODE_DEFAULT_VALUE_KIND: Hash[Symbol, String]
+
+        attr_reader config_read: Client::ConfigRead
+        attr_reader config_state: ConfigState?
+        attr_reader returned_the_in_code_default_value: bool
+        attr_reader reason: String
+        attr_reader value_kept_for_the_report: config_value?
+
+        def self.new: (
+          config_read: Client::ConfigRead,
+          config_state: ConfigState?,
+          returned_the_in_code_default_value: bool,
+          reason: String,
+          value_kept_for_the_report: config_value?
+        ) -> instance
+
+        def self.of: (Client::EvaluatedRead evaluated_read) -> ReportedEvaluation
+
+        def wire_event: () -> wire_event
+
+        private
+
+        def wire_context: () -> wire_event
+
+        def wire_evaluation: () -> wire_event
+
+        def wire_evaluated_value: () -> Hash[Symbol, String?]
+
+        def wire_identifiers_of_what_was_served: () -> wire_event
+
+        def config_state_served: () -> ConfigState?
+      end
+
+      class InvalidContextSubmissions
+        DISTINCT_KIND_SAMPLE_LIMIT: Integer
+        REASON: String
+
+        @counts_by_kind_sample: Hash[String, Integer]
+        @count_beyond_the_sample_limit: Integer
+        @counted_since: Time?
+
+        def initialize: () -> void
+
+        def count: (String kind_sample, Time now) -> invalid_context_recording
+
+        def wire_entries_taken_for_a_report: (Time now) -> Array[wire_event]
+
+        def discard: () -> void
+
+        private
+
+        def count_known: (String kind_sample) -> :known_kind_sample
+
+        def count_new: (String kind_sample) -> :new_kind_sample
+
+        def count_beyond_the_sample_limit: () -> (:first_beyond_sample_limit | :beyond_sample_limit)
+
+        def counts_by_wire_event_taken_for_a_report: () -> Hash[wire_event, Integer]
+
+        def wire_event_of: (String? kind_sample) -> wire_event
+      end
+
+      class TelemetryReport < Data
+        attr_reader evaluations: Array[ReportedEvaluation]
+        attr_reader evaluations_collected_since: Time?
+        attr_reader evaluations_dropped: Integer
+        attr_reader captured_contexts: Array[ReportedContext]
+        attr_reader captured_contexts_dropped: Integer
+        attr_reader invalid_context_wire_entries: Array[wire_event]
+        attr_reader taken_at: Time
+
+        def self.new: (
+          evaluations: Array[ReportedEvaluation],
+          evaluations_collected_since: Time?,
+          evaluations_dropped: Integer,
+          captured_contexts: Array[ReportedContext],
+          captured_contexts_dropped: Integer,
+          invalid_context_wire_entries: Array[wire_event],
+          taken_at: Time
+        ) -> instance
+
+        def empty?: () -> bool
+
+        def wire_events: () -> Hash[Symbol, untyped]
+
+        private
+
+        def aggregated_evaluations: () -> Array[wire_event]
+
+        def counts_by_wire_event: () -> Hash[wire_event, Integer]
+      end
+
+      class CollectedTelemetry
+        SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS: Float
+        SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS: Float
+
+        @evaluations_limit: Integer
+        @captured_contexts_limit: Integer
+        @invalid_context_submissions: InvalidContextSubmissions
+        @collecting_process_id: Integer
+        @evaluations: Array[ReportedEvaluation]
+        @evaluations_collected_since: Time?
+        @evaluations_dropped: Integer
+        @captured_contexts: Hash[[String, String], ReportedContext]
+        @captured_contexts_dropped: Integer
+
+        def initialize: (Integer event_queue_limit) -> void
+
+        def add: (Client::EvaluatedRead evaluated_read) -> void
+
+        def count_invalid_context: (String kind_sample) -> invalid_context_recording
+
+        def keep_what_the_parent_process_collected: () -> void
+
+        def taken_for_a_report: () -> TelemetryReport
+
+        def discard_evaluations_and_captured_contexts: () -> void
+
+        private
+
+        def leave_to_the_parent_process_what_it_collected: () -> void
+
+        def capture: (ReportedContext reported_context) -> void
+      end
+
+      class ReportTiming < Data
+        attr_reader seconds_before_the_first_report: seconds
+        attr_reader seconds_between_reports: seconds
+        attr_reader seconds_a_report_may_take: seconds
+
+        def self.new: (
+          seconds_before_the_first_report: seconds,
+          seconds_between_reports: seconds,
+          seconds_a_report_may_take: seconds
+        ) -> instance
+
+        def self.of_a_client_reporting_every: (seconds seconds_between_reports) -> ReportTiming
+      end
+
+      class ReportAnswer < Data
+        ACCEPTED_STATUSES: Range[Integer]
+        REPORT_TOO_LARGE_STATUS: Integer
+        TOO_MANY_REQUESTS_STATUS: Integer
+        STATUSES_THAT_END_TELEMETRY: Array[Integer]
+
+        attr_reader kind: report_answer_kind
+        attr_reader status: Integer?
+        attr_reader detail: String?
+
+        def self.new: (kind: report_answer_kind, status: Integer?, detail: String?) -> instance
+
+        def self.with_status: (Integer status) -> ReportAnswer
+
+        def self.unanswered: (String detail) -> ReportAnswer
+      end
+
+      class TelemetryEndpoint
+        @telemetry_uri: URI::Generic
+        @server_sdk_key: String
+        @sdk_identity: Identity::SdkIdentity
+        @meta_context: Hash[Symbol, String]
+        @seconds_a_report_may_take: seconds
+
+        def initialize: (
+          url: String,
+          server_sdk_key: String,
+          metadata: Metadata,
+          sdk_identity: Identity::SdkIdentity,
+          seconds_a_report_may_take: seconds
+        ) -> void
+
+        def answer_to: (TelemetryReport report) -> ReportAnswer
+
+        private
+
+        def answer_before: (Connection::RequestDeadline deadline, Net::HTTP::Post json_post) -> ReportAnswer
+
+        def json_post_of: (TelemetryReport report) -> Net::HTTP::Post
+
+        def response_to: (Net::HTTP::Post json_post, Connection::RequestDeadline deadline) -> Net::HTTPResponse
+      end
+
+      class EventReporter
+        WHAT_FOLLOWS_BY_ANSWER_KIND: Hash[Symbol, Symbol]
+        LOG_BY_ANSWER_KIND: Hash[Symbol, ^(Logging::ClientLog log, ReportAnswer answer) -> void]
+
+        @endpoint: TelemetryEndpoint
+        @log: Logging::ClientLog
+
+        def initialize: (TelemetryEndpoint endpoint, _Logger & Object logger) -> void
+
+        def what_follows_a_report_of: (TelemetryReport report) -> Symbol
+      end
+
+      class ReportSchedule
+        @timing: ReportTiming
+        @lock: Thread::Mutex
+        @no_longer_waiting_for_the_next_report: Thread::ConditionVariable
+        @stopped: bool
+        @thread: Thread?
+
+        def initialize: (ReportTiming timing) -> void
+
+        def start: () { () -> void } -> nil
+
+        def stop: () -> nil
+
+        def wait_for_a_report_being_sent: () -> nil
+
+        private
+
+        def send_a_report_on_every_interval: (^() -> void send_a_report) -> void
+
+        def stopped_within?: (seconds seconds) -> bool
+      end
+
+      class DiscardedTelemetry
+        include _ClientTelemetry
+
+        def self.for_a_client_with: (**untyped) -> DiscardedTelemetry
+      end
+
+      class ReportedTelemetry
+        include _ClientTelemetry
+
+        COLLECTS_BY_REPORTING: Hash[Symbol, bool]
+        REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED: Hash[Symbol, Symbol]
+
+        @reporter: EventReporter
+        @collected_telemetry: CollectedTelemetry
+        @schedule: ReportSchedule
+        @log: Logging::ClientLog
+        @lock: Thread::Mutex
+        @reporting: Symbol
+
+        def self.for_a_client_with: (
+          server_sdk_key: String,
+          metadata: Metadata,
+          connection_options: ConnectionOptions,
+          telemetry_options: TelemetryOptions,
+          sdk_identity: Identity::SdkIdentity,
+          logger: _Logger & Object
+        ) -> ReportedTelemetry
+
+        def self.reporting_to: (
+          url: String,
+          server_sdk_key: String,
+          metadata: Metadata,
+          sdk_identity: Identity::SdkIdentity,
+          event_queue_limit: Integer,
+          timing: ReportTiming,
+          logger: _Logger & Object
+        ) -> ReportedTelemetry
+
+        def initialize: (
+          reporter: EventReporter,
+          collected_telemetry: CollectedTelemetry,
+          schedule: ReportSchedule,
+          logger: _Logger & Object
+        ) -> void
+
+        private
+
+        def report_what_was_collected: () -> void
+
+        def send_to_the_endpoint: (TelemetryReport report) -> void
+
+        def stop_collecting: () -> void
+      end
+    end
+  end
+end

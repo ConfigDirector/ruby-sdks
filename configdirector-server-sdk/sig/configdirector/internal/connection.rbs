@@ -347,6 +347,23 @@ module ConfigDirector
 
       module JsonPostRequest
         def self.to: (URI::Generic uri, Identity::SdkIdentity sdk_identity, **untyped body) -> Net::HTTP::Post
+
+        def self.carrying: (String json_text, URI::Generic uri, Identity::SdkIdentity sdk_identity) -> Net::HTTP::Post
+      end
+
+      class RequestDeadline
+        @monotonic_seconds: ^() -> Float
+        @passes_at: Float
+
+        attr_reader seconds_the_request_may_take: seconds
+
+        def self.on_the_clock_of_the_process: (seconds seconds_the_request_may_take) -> RequestDeadline
+
+        def initialize: (seconds_the_request_may_take: seconds, monotonic_seconds: ^() -> Float) -> void
+
+        def description_of_having_passed: () -> String
+
+        def seconds_left: () -> Float
       end
 
       module HttpSession

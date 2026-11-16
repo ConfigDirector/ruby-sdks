@@ -8,10 +8,14 @@ module ConfigDirector
     module Connection
       module JsonPostRequest
         def self.to(uri, sdk_identity, **body)
+          carrying(JSON.generate(body), uri, sdk_identity)
+        end
+
+        def self.carrying(json_text, uri, sdk_identity)
           request = Net::HTTP::Post.new(uri)
           request["Content-Type"] = "application/json"
           request["User-Agent"] = sdk_identity.user_agent
-          request.body = JSON.generate(body)
+          request.body = json_text
           request
         end
       end

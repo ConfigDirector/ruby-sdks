@@ -6,9 +6,15 @@ module ConfigDirector
   # The ConfigDirector SDK client. Create one with {ConfigDirector.create_client}, call {#init} when your
   # application starts and {#close} when it shuts down. A client can be shared between threads.
   #
+  # The client reports what it evaluates to ConfigDirector, on a thread of the SDK that {#init} starts: the
+  # first report 5 seconds after {#init}, then one every {TelemetryOptions#flush_interval}. {#close} sends the
+  # last one, so a process that exits without calling it does not report its last reads. An offline client
+  # reports nothing.
+  #
   # When the process forks after {#init}, as Puma does for its workers in cluster mode, the client starts its
   # own connection in the forked process by itself. There it serves the values it had at the fork at once, and
-  # its handlers and watches keep being called, on a thread of the SDK.
+  # its handlers and watches keep being called, on a thread of the SDK. It reports what the forked process
+  # evaluates from there, and what was evaluated before the fork from the parent.
   class ConfigDirectorClient
     WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
       "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
@@ -22,7 +28,7 @@ module ConfigDirector
     private_constant :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
 
     # @api private
-    def initialize(connection:, mode:, timeout:, metadata:, logger:, hooks:)
+    def initialize(connection:, telemetry:, mode:, timeout:, metadata:, logger:, hooks:)
       @mode = mode
       @timeout = timeout.to_f
       @log = Internal::Logging::ClientLog.new(logger)
@@ -30,8 +36,8 @@ module ConfigDirector
       @serving_state = Internal::Client::ServingState.new(metadata)
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
-      @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, @log)
-      @client_connection = client_connection_over(connection)
+      @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, telemetry, @log)
+      @client_connection = client_connection_over(connection, telemetry)
     end
 
     # Connects to ConfigDirector and makes the client ready. It waits, up to the connection timeout, for the
@@ -112,7 +118,7 @@ module ConfigDirector
     end
 
     # Returns what every config serves to the given context, keyed by config key, or only the configs listed
-    # in +config_keys+. It records no telemetry, calls no +config_evaluated+ handler, and returns an empty
+    # in +config_keys+. It reports no evaluation, calls no +config_evaluated+ handler, and returns an empty
     # Hash when the client is not ready.
     #
     # @param context [Context, nil] the context to evaluate the targeting rules for
@@ -227,6 +233,9 @@ module ConfigDirector
     # read returns its in-code default value and {#get_all_configs} is empty. It is safe to call more than
     # once.
     #
+    # Before it returns, it sends what the client evaluated since its last report. It waits up to 5 seconds
+    # for ConfigDirector to answer, and up to 5 more when a report was already being sent.
+    #
     # @return [void]
     def close
       @connection_lifecycle.synchronize do
@@ -255,14 +264,15 @@ module ConfigDirector
             "This client has been closed and can no longer be used. Create a new one instead."
     end
 
-    def client_connection_over(connection)
+    def client_connection_over(connection, telemetry)
       intake = Internal::Client::ConnectionIntake.new(
         serving_state: @serving_state, event_handlers: @event_handlers, watches: @watches,
         config_reader: @config_reader, log: @log
       )
 
       Internal::Client::ClientConnection.new(
-        connection: connection, mode: @mode, serving_state: @serving_state, intake: intake, log: @log
+        connection: connection, telemetry: telemetry, mode: @mode, serving_state: @serving_state, intake: intake,
+        log: @log
       )
     end
 

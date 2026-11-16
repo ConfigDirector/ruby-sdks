@@ -736,6 +736,16 @@ RSpec.describe "A test client" do
     ).to_stderr_from_any_process
   end
 
+  it "logs an error for a context with an invalid kind on every read" do
+    test_client = test_client_serving({ "new-checkout" => true })
+    test_client.client.init
+
+    3.times { test_client.client.get_value("new-checkout", false, ConfigDirector::Context.new(kind: "Device")) }
+
+    expect(logger.messages_at(:error).length).to eq(3)
+    expect(logger.messages_at(:error)).to all(include("Device"))
+  end
+
   it "starts no thread" do
     threads_before_the_test_client = Thread.list
     thread_starts = 0

@@ -32,11 +32,11 @@ module ConfigDirector
           )
         end
 
-        def evaluation(config_read)
+        def evaluated_read(config_read)
           definition = configs[config_read.config_key]
-          return config_read.in_code_default_evaluation("config-state-missing") if definition.nil?
+          return config_read.evaluated_to_the_in_code_default_value("config-state-missing", nil) if definition.nil?
 
-          evaluation_of(definition, config_read)
+          evaluated_read_of(definition, config_read)
         end
 
         def states(context, config_keys)
@@ -51,7 +51,7 @@ module ConfigDirector
           configs.select { |_config_key, definition| definition.uses_any_segment_of?(segment_ids) }.keys
         end
 
-        def evaluation_of(definition, config_read)
+        def evaluated_read_of(definition, config_read)
           served = value_served_to(config_read.context, definition)
           state = definition.state_serving(served)
           typed_value_or_reason = Value::ServedText.typed_as(
@@ -60,8 +60,8 @@ module ConfigDirector
 
           case typed_value_or_reason
           when Value::TypedValue
-            config_read.served_evaluation(typed_value_or_reason, state, REASON_BY_SERVED_BY.fetch(served.served_by))
-          else config_read.in_code_default_evaluation(typed_value_or_reason)
+            config_read.evaluated_to(typed_value_or_reason, state, REASON_BY_SERVED_BY.fetch(served.served_by))
+          else config_read.evaluated_to_the_in_code_default_value(typed_value_or_reason, state)
           end
         end
 

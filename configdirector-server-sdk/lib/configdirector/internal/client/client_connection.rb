@@ -13,8 +13,9 @@ module ConfigDirector
 
         private_constant :CONNECTION_AT_A_LATER_INIT_BY_MODE
 
-        def initialize(connection:, mode:, serving_state:, intake:, log:)
+        def initialize(connection:, telemetry:, mode:, serving_state:, intake:, log:)
           @connection = connection
+          @telemetry = telemetry
           @mode = mode
           @connection_opened = false
           @serving_state = serving_state
@@ -24,6 +25,7 @@ module ConfigDirector
         end
 
         def open
+          @telemetry.start_reporting
           case connection_at_this_init
           when :left_open then :opened_before
           when :opened_for_the_first_time, :opened_again then open_the_connection
@@ -33,12 +35,15 @@ module ConfigDirector
         def close
           LiveClientConnections::OF_THE_PROCESS.remove(self)
           @connection.close
+          @telemetry.close
         end
 
-        def restart_in_a_forked_process
+        def restart_in_a_forked_process(forked_through)
           case what_follows_a_fork
           when :nothing_to_restart then nil
-          when :restart_the_connection then restart_the_connection
+          when :restart_the_connection
+            restart_the_telemetry(forked_through)
+            restart_the_connection
           end
         rescue StandardError => e
           @log.error(
@@ -71,6 +76,12 @@ module ConfigDirector
             mode: @mode, closed: @serving_state.closed?,
             connection_failed_unrecoverably: @serving_state.connection_failed_unrecoverably?
           )
+        end
+
+        def restart_the_telemetry(forked_through)
+          @telemetry.restart_in_a_forked_process(forked_through)
+        rescue StandardError => e
+          @log.error("Failed to restart telemetry in forked process #{Process.pid}: #{e.class}: #{e.message.inspect}")
         end
 
         def restart_the_connection

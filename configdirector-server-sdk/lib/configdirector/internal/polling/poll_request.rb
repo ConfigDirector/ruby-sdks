@@ -29,7 +29,7 @@ module ConfigDirector
         def answer
           answer_in(response_to_the_post)
         rescue Timeout::Error
-          PollAnswer.timed_out(@deadline.seconds_a_poll_may_take)
+          PollAnswer.timed_out(@deadline.description_of_having_passed)
         rescue StandardError => e
           PollAnswer.unanswered("#{e.class}: #{e.message}")
         end

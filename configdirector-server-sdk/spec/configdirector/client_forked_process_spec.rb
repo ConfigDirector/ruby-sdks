@@ -255,7 +255,7 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     Signal.trap("USR1", handler_before)
   end
 
-  it "logs the failure at error level and lets the fork go on when the forked process cannot start a thread" do
+  it "logs each failure at error level and lets the fork go on when the forked process cannot start a thread" do
     client, = streaming_client_initialized_with(payload_serving_monday)
 
     forked_process = Thread.new do
@@ -264,8 +264,12 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     end.value
     process_id_of_the_fork, error_lines, ready = forked_process.report
 
-    expect(error_lines.length).to eq(1)
+    expect(error_lines.length).to eq(2)
     expect(error_lines.first).to start_with(
+      "[ConfigDirectorClient] Failed to restart telemetry in forked process #{process_id_of_the_fork}: " \
+      'ThreadError: "can\'t start a new thread'
+    )
+    expect(error_lines.last).to start_with(
       "[ConfigDirectorClient] Failed to restart the connection in forked process #{process_id_of_the_fork}: " \
       'ThreadError: "can\'t start a new thread'
     )
@@ -467,6 +471,136 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
 
     expect(Timeout.timeout(30) { report_reader.read }).to eq("Tuesday")
     expect(session_ids.uniq.length).to eq(2)
+  end
+
+  def in_code_default_values_reported_in(telemetry_request)
+    telemetry_request.json.fetch("aggregatedEvents").fetch("evaluatedConfig").map do |evaluation|
+      evaluation.fetch("event").fetch("defaultValue").fetch("value")
+    end
+  end
+
+  it "reports from the forked process what was read there, and from the parent what it read before the fork" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+    client.get_value("day-of-the-week", "read before the fork")
+
+    forked_process = ForkedProcess.reporting do
+      client.get_value("day-of-the-week", "read in the forked process")
+      client.close
+    end
+    forked_process.report
+    report_of_the_forked_process = sdk_server.next_telemetry_request
+    client.close
+    report_of_the_parent = sdk_server.next_telemetry_request
+
+    expect(in_code_default_values_reported_in(report_of_the_forked_process)).to eq(["read in the forked process"])
+    expect(in_code_default_values_reported_in(report_of_the_parent)).to eq(["read before the fork"])
+    expect(report_of_the_forked_process.json.fetch("metaContext")).to eq(
+      report_of_the_parent.json.fetch("metaContext")
+    )
+    expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0)).to be(false)
+  end
+
+  it "starts a telemetry thread of its own in the forked process" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+
+    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+
+    expect(forked_process.report.count("configdirector-telemetry")).to eq(1)
+  end
+
+  it "sends its first report from the forked process 5 seconds after the fork" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+
+    forked_process = ForkedProcess.reporting do
+      client.get_value("day-of-the-week", "read in the forked process")
+      seconds_taken { wait_up_to(8) { logger.messages_at(:debug).any? { |line| line.include?("[EventReporter]") } } }
+    end
+    seconds_before_the_report_was_sent = forked_process.report
+
+    expect(seconds_before_the_report_was_sent).to be_between(4.5, 6.5)
+    expect(in_code_default_values_reported_in(sdk_server.next_telemetry_request(within: 0))).to eq(
+      ["read in the forked process"]
+    )
+  end
+
+  it "starts no telemetry thread in the forked process for a client that ConfigDirector refused" do
+    client = client_connecting_to(sdk_server.url)
+    initializing = start_init_of(client)
+    sdk_server.next_stream_request.answer(status: 401)
+    initializing.join(10)
+
+    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+
+    expect(forked_process.report).not_to include("configdirector-telemetry")
+  end
+
+  it "starts no telemetry thread in the forked process for a client that was closed before the fork" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+    client.close
+
+    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+
+    expect(forked_process.report).not_to include("configdirector-telemetry")
+  end
+
+  it "leaves the reads of a client that was never initialized to the process that made them" do
+    client = client_connecting_to(sdk_server.url)
+    client.get_value("day-of-the-week", "read before the fork")
+
+    forked_process = ForkedProcess.reporting do
+      client.get_value("day-of-the-week", "read in the forked process")
+      client.close
+    end
+    forked_process.report
+    report_of_the_forked_process = sdk_server.next_telemetry_request
+    client.close
+    report_of_the_parent = sdk_server.next_telemetry_request
+
+    expect(in_code_default_values_reported_in(report_of_the_forked_process)).to eq(["read in the forked process"])
+    expect(in_code_default_values_reported_in(report_of_the_parent)).to eq(["read before the fork"])
+  end
+
+  it "leaves a context with an invalid kind given before the fork out of the forked process's report" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+    client.get_value("day-of-the-week", "Sunday", ConfigDirector::Context.new(kind: "Device"))
+
+    forked_process = ForkedProcess.reporting do
+      client.get_value("day-of-the-week", "Sunday", ConfigDirector::Context.new(kind: "Tenant"))
+      client.close
+    end
+    forked_process.report
+    invalid_contexts = sdk_server.next_telemetry_request.json.fetch("aggregatedEvents").fetch("invalidContext")
+
+    expect(invalid_contexts.map { |entry| entry.fetch("event").fetch("kindSample") }).to eq(["Tenant"])
+  end
+
+  it "reports from the process Process.daemon leaves what was read before and after it" do
+    streams_opened_with(payload_serving_monday)
+    report_reader, report_writer = IO.pipe
+    process_id = Process.spawn(
+      RbConfig.ruby, "-I", File.expand_path("../../lib", __dir__),
+      File.expand_path("../support/process_that_daemonizes_with_telemetry_collected.rb", __dir__), sdk_server.url,
+      out: report_writer
+    )
+    report_writer.close
+
+    Process.wait(process_id)
+
+    expect(Timeout.timeout(30) { report_reader.read }).to eq("closed")
+    expect(in_code_default_values_reported_in(sdk_server.next_telemetry_request(within: 0))).to eq(
+      ["read before Process.daemon", "read after Process.daemon"]
+    )
+    expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0)).to be(false)
   end
 
   it "lets each of 50 forked processes read a value and exit within 5 seconds while updates stream" do

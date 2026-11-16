@@ -234,6 +234,7 @@ module ConfigDirector
 
     def initialize: (
       connection: Internal::Connection::_Connection,
+      telemetry: Internal::Telemetry::_ClientTelemetry,
       mode: String,
       timeout: seconds,
       metadata: Metadata,
@@ -269,7 +270,10 @@ module ConfigDirector
 
     def raise_if_closed: () -> void
 
-    def client_connection_over: (Internal::Connection::_Connection connection) -> Internal::Client::ClientConnection
+    def client_connection_over: (
+      Internal::Connection::_Connection connection,
+      Internal::Telemetry::_ClientTelemetry telemetry
+    ) -> Internal::Client::ClientConnection
 
     def warn_that_no_values_arrived_in_time: () -> void
   end

@@ -553,6 +553,26 @@ RSpec.describe "A client in offline mode" do
     expect(logger.messages_at(:warn)).to be_empty
   end
 
+  it "sends no telemetry for its reads, not even when it is closed" do
+    client = offline_client(values: { "new-checkout" => true }, url: sdk_server.url)
+    client.init
+    client.get_value("new-checkout", false, ConfigDirector::Context.new(id: "user-123"))
+
+    client.close
+
+    expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0.2)).to be(false)
+  end
+
+  it "logs an error for a context with an invalid kind on every read" do
+    client = offline_client(values: { "new-checkout" => true })
+    client.init
+
+    3.times { client.get_value("new-checkout", false, ConfigDirector::Context.new(kind: "Device")) }
+
+    expect(logger.messages_at(:error).length).to eq(3)
+    expect(logger.messages_at(:error)).to all(include("Device"))
+  end
+
   it "asks the SDK server for nothing and starts no thread" do
     sdk_server_url = sdk_server.url
     threads_before_the_client = Thread.list

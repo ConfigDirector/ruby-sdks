@@ -89,36 +89,13 @@ module ConfigDirector
         def self.sample_of: (untyped kind) -> String
       end
 
-      type invalid_context_kind_recording = :new_kind_sample
-                                          | :known_kind_sample
-                                          | :first_beyond_sample_limit
-                                          | :beyond_sample_limit
-
-      class InvalidContextKinds
-        DISTINCT_KIND_SAMPLE_LIMIT: Integer
-
-        @mutex: Thread::Mutex
-        @kind_samples: Set[String]
-        @a_kind_was_beyond_the_sample_limit: bool
-
-        def initialize: () -> void
-
-        def record: (String kind_sample) -> invalid_context_kind_recording
-
-        private
-
-        def record_new: (String kind_sample) -> :new_kind_sample
-
-        def record_first_beyond_the_sample_limit: () -> :first_beyond_sample_limit
-      end
-
       class ContextAdmission
         LOG_AN_INVALID_KIND: Hash[Symbol, ^(Logging::ClientLog log, String kind_sample) -> void]
 
         @log: Logging::ClientLog
-        @invalid_context_kinds: InvalidContextKinds
+        @telemetry: Telemetry::_ClientTelemetry
 
-        def initialize: (Logging::ClientLog log) -> void
+        def initialize: (Logging::ClientLog log, Telemetry::_ClientTelemetry telemetry) -> void
 
         def admitted_context_or_none: (untyped context) -> Context?
       end
@@ -134,9 +111,17 @@ module ConfigDirector
           context: Context?
         ) -> instance
 
-        def in_code_default_evaluation: (String reason) -> ConfigEvaluation
+        def evaluated_to_the_in_code_default_value: (String reason, ConfigState? config_state) -> EvaluatedRead
 
-        def served_evaluation: (Value::TypedValue typed_value, ConfigState state, String reason) -> ConfigEvaluation
+        def evaluated_to: (Value::TypedValue typed_value, ConfigState config_state, String reason) -> EvaluatedRead
+      end
+
+      class EvaluatedRead < Data
+        attr_reader config_read: ConfigRead
+        attr_reader evaluation: ConfigEvaluation
+        attr_reader config_state: ConfigState?
+
+        def self.new: (config_read: ConfigRead, evaluation: ConfigEvaluation, config_state: ConfigState?) -> instance
       end
 
       type arrival_of_values = :after_close | :first_values | :newer_values
@@ -144,10 +129,16 @@ module ConfigDirector
       class ConfigReader
         @serving_state: ServingState
         @event_handlers: EventHandlers
+        @telemetry: Telemetry::_ClientTelemetry
         @log: Logging::ClientLog
         @context_admission: ContextAdmission
 
-        def initialize: (ServingState serving_state, EventHandlers event_handlers, Logging::ClientLog log) -> void
+        def initialize: (
+          ServingState serving_state,
+          EventHandlers event_handlers,
+          Telemetry::_ClientTelemetry telemetry,
+          Logging::ClientLog log
+        ) -> void
 
         def config_read_of: (untyped config_key, untyped default_value, untyped context) -> ConfigRead
 
@@ -250,6 +241,7 @@ module ConfigDirector
 
       module ClientFactory
         CONNECTION_CLASS_BY_MODE: Hash[String, Connection::_ConnectionOfAMode]
+        TELEMETRY_CLASS_BY_MODE: Hash[String, Telemetry::_TelemetryOfAMode]
 
         def self.client_identified_as: (
           Identity::SdkIdentity sdk_identity,
@@ -273,6 +265,23 @@ module ConfigDirector
           server_sdk_key: String,
           metadata: Metadata,
           connection_options: ConnectionOptions,
+          telemetry_options: TelemetryOptions,
+          logger: _Logger & Object,
+          hooks: ClientHooks
+        ) -> ConfigDirectorClient
+
+        def self.options_or_their_defaults: (
+          Metadata? metadata,
+          ConnectionOptions? connection,
+          TelemetryOptions? telemetry,
+          ClientHooks? hooks
+        ) -> [Metadata, ConnectionOptions, TelemetryOptions, ClientHooks]
+
+        def self.client_over: (
+          Connection::_Connection connection,
+          Telemetry::_ClientTelemetry telemetry,
+          ConnectionOptions connection_options,
+          metadata: Metadata,
           logger: _Logger & Object,
           hooks: ClientHooks
         ) -> ConfigDirectorClient
@@ -347,17 +356,18 @@ module ConfigDirector
 
         def remove: (ClientConnection client_connection) -> nil
 
-        def restart_in_a_forked_process: () -> nil
+        def restart_in_a_forked_process: (Symbol forked_through) -> nil
 
         private
 
-        def restart_each_in_a_forked_process: () -> nil
+        def restart_each_in_a_forked_process: (Symbol forked_through) -> nil
       end
 
       class ClientConnection
         CONNECTION_AT_A_LATER_INIT_BY_MODE: Hash[String, Symbol]
 
         @connection: Connection::_Connection
+        @telemetry: Telemetry::_ClientTelemetry
         @mode: String
         @connection_opened: bool
         @serving_state: ServingState
@@ -367,6 +377,7 @@ module ConfigDirector
 
         def initialize: (
           connection: Connection::_Connection,
+          telemetry: Telemetry::_ClientTelemetry,
           mode: String,
           serving_state: ServingState,
           intake: ConnectionIntake,
@@ -377,7 +388,7 @@ module ConfigDirector
 
         def close: () -> void
 
-        def restart_in_a_forked_process: () -> void
+        def restart_in_a_forked_process: (Symbol forked_through) -> void
 
         private
 
@@ -386,6 +397,8 @@ module ConfigDirector
         def open_the_connection: () -> Symbol
 
         def what_follows_a_fork: () -> Symbol
+
+        def restart_the_telemetry: (Symbol forked_through) -> void
 
         def restart_the_connection: () -> void
       end
@@ -446,7 +459,7 @@ module ConfigDirector
 
         def update_since: (ServedConfigs replaced_configs, Connection::ServerSdkPayload payload) -> ConfigsUpdatedEvent
 
-        def evaluation: (ConfigRead config_read) -> ConfigEvaluation
+        def evaluated_read: (ConfigRead config_read) -> EvaluatedRead
 
         def states: (Context? context, Array[String]? config_keys) -> Hash[String, ConfigState]
 
@@ -454,7 +467,7 @@ module ConfigDirector
 
         def keys_of_configs_using_any_segment_of: (Array[String] segment_ids) -> Array[String]
 
-        def evaluation_of: (Connection::ConfigDefinition definition, ConfigRead config_read) -> ConfigEvaluation
+        def evaluated_read_of: (Connection::ConfigDefinition definition, ConfigRead config_read) -> EvaluatedRead
 
         def value_served_to: (Context? context, Connection::ConfigDefinition definition) -> Evaluation::ServedValue
 

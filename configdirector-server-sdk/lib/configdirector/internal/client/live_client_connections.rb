@@ -19,22 +19,22 @@ module ConfigDirector
           nil
         end
 
-        def restart_in_a_forked_process
+        def restart_in_a_forked_process(forked_through)
           return if @client_connections.empty?
 
-          Thread.new { restart_each_in_a_forked_process }.join
+          Thread.new { restart_each_in_a_forked_process(forked_through) }.join
           nil
         rescue ThreadError
-          restart_each_in_a_forked_process
+          restart_each_in_a_forked_process(forked_through)
         end
 
         OF_THE_PROCESS = new
 
         private
 
-        def restart_each_in_a_forked_process
+        def restart_each_in_a_forked_process(forked_through)
           @lock.synchronize { @client_connections.dup }.each do |client_connection|
-            client_connection.restart_in_a_forked_process
+            client_connection.restart_in_a_forked_process(forked_through)
           rescue StandardError
             nil
           end

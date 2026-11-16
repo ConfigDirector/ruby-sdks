@@ -89,12 +89,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Hash, raises it too.
 - A context whose `kind` is not 1 to 64 characters of lowercase letters, digits, `-` and `_` is ignored
   whole: the config is evaluated as if no context was given, the evaluation's `context` is `nil`, and an
-  error is logged once for each invalid kind. After 20 different invalid kinds a client logs one more error
-  and then no longer logs them.
+  error is logged once for each invalid kind until the client next sends its telemetry. A client that reports
+  every `telemetry.flush_interval` logs a kind that keeps being given about once per interval. After 20
+  different invalid kinds a client logs one more error and then no longer logs them until that report is sent.
+  An offline client and the client of a test client, which send no telemetry, log the error on every read.
 - `get_all_configs(context:, config_keys:)` returns a `ConfigState` for every config, or for the listed
   config keys, keyed by config key. It is empty until the client is ready. A `ConfigState` has `id`, `key`,
   `type`, `value` (the served text), `value_id`, `variation`, `rule_id` and `share_id`. `config_keys` that
   are not an Array raise `ConfigDirectorValidationError`.
+- The client reports what it evaluates to ConfigDirector, which shows it as activity in the dashboard and counts
+  the exposures of experiments from it. Each `get_value`, `evaluate` and watch delivery is one evaluation, reads
+  that return the in-code default value included, and identical evaluations are sent once with their count.
+  `get_all_configs` and reads after `close` are not reported. A context that has an `id` and is not anonymous is
+  sent with its `name` and `traits`, once per report. A context with an invalid kind is only counted, with a
+  sample of its kind and nothing else of it.
+- The first `init` starts a thread of the SDK that sends the first report 5 seconds later and then one every
+  `telemetry.flush_interval`, 30 seconds unless given. A client that was created and never initialized starts no
+  thread and keeps what it evaluated until `init` or `close`. Between two reports the client holds at most
+  `telemetry.event_queue_limit` events, 5,000 unless given: evaluations up to 70% of it and contexts up to 30%.
+  Beyond that it drops the oldest and reports how many it dropped. An offline client reports nothing.
+- `close` sends what the client evaluated since its last report before it returns. It waits up to 5 seconds for
+  ConfigDirector to answer, and up to 5 more when a report was already being sent. The SDK registers no exit hook,
+  so a process that exits without calling `close` does not report its last reads.
+- When ConfigDirector refuses a report with a status from 400 to 499 other than 413 and 429, for example because
+  it does not know the server SDK key, the client logs a warning and collects and sends no more telemetry. A report
+  that fails any other way is logged as a warning and discarded, and the next one is sent on time. No report is
+  sent twice.
+- In a forked process, a client that starts its own connection there also reports from there what that process
+  evaluates, with its first report 5 seconds after the fork. What was evaluated before the fork is reported once,
+  by the parent. After `Process.daemon`, where the original process ends at once, such a client reports what was
+  evaluated before it from the process `Process.daemon` leaves.
 - `close` can be called more than once, and `closed?` says whether it was. Afterwards the client is not
   ready, every read returns its in-code default value with the reason `"client-not-ready"`,
   `get_all_configs` is empty, and `init` raises `ConfigDirectorValidationError`.

@@ -52,7 +52,10 @@ module ConfigDirector
         private
 
         def answer_retried_once_when_unanswered
-          deadline = PollDeadline.new(@timing)
+          deadline = Connection::RequestDeadline.new(
+            seconds_the_request_may_take: @timing.seconds_a_poll_may_take,
+            monotonic_seconds: @timing.monotonic_seconds
+          )
           answer = answer_before(deadline)
           return answer unless answer.sent_again_at_once?
 

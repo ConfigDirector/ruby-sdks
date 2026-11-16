@@ -75,7 +75,9 @@ directory and the gem does not ship it. Delete a file there once an `rbs` releas
 
 The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.rb`: a real HTTP server on a free
 local port that holds each request until the example answers it, opens an event stream on it or drops it, and
-is stopped when the example ends. No spec stubs `net/http`. An example that needs to know how far the SDK read an
+is stopped when the example ends. It accepts a telemetry report at once and keeps it for the example to read, so
+that closing a client never waits for an answer; an example that answers the reports itself calls
+`hold_telemetry_reports` first. No spec stubs `net/http`. An example that needs to know how far the SDK read an
 answer sends it in pieces: Windows takes one large write whole, whatever the other side reads, so only a later
 write meets the connection the SDK closed.
 

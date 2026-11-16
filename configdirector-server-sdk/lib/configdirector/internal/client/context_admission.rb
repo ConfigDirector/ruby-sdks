@@ -15,8 +15,8 @@ module ConfigDirector
           first_beyond_sample_limit: lambda do |log, _kind_sample|
             log.error(
               "Ignored a context with another invalid kind and evaluated as if no context was supplied. " \
-              "#{InvalidContextKinds::DISTINCT_KIND_SAMPLE_LIMIT} different invalid kinds were logged, so further " \
-              "invalid kinds are not logged individually."
+              "#{Telemetry::InvalidContextSubmissions::DISTINCT_KIND_SAMPLE_LIMIT} different invalid kinds were " \
+              "logged recently, so further invalid kinds are not logged individually."
             )
           end,
           beyond_sample_limit: ->(_log, _kind_sample) {}
@@ -24,9 +24,9 @@ module ConfigDirector
 
         private_constant :LOG_AN_INVALID_KIND
 
-        def initialize(log)
+        def initialize(log, telemetry)
           @log = log
-          @invalid_context_kinds = InvalidContextKinds.new
+          @telemetry = telemetry
         end
 
         def admitted_context_or_none(context)
@@ -39,7 +39,7 @@ module ConfigDirector
           return context if context.kind.nil? || ContextKind.valid?(context.kind)
 
           kind_sample = ContextKind.sample_of(context.kind)
-          LOG_AN_INVALID_KIND.fetch(@invalid_context_kinds.record(kind_sample)).call(@log, kind_sample)
+          LOG_AN_INVALID_KIND.fetch(@telemetry.count_invalid_context(kind_sample)).call(@log, kind_sample)
           nil
         end
       end

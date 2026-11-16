@@ -53,12 +53,8 @@ module ConfigDirector
           failed(:unanswered, "Connection failed with error: #{cause}.")
         end
 
-        def self.timed_out(seconds_a_poll_may_take)
-          failed(
-            :timed_out,
-            "Connection failed with error: the SDK server gave no complete answer within " \
-            "#{format("%g", seconds_a_poll_may_take)} seconds."
-          )
+        def self.timed_out(description_of_the_deadline_having_passed)
+          failed(:timed_out, "Connection failed with error: #{description_of_the_deadline_having_passed}.")
         end
 
         def self.refused(status)

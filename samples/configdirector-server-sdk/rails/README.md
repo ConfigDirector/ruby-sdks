@@ -147,7 +147,8 @@ SDK refuses, or a timeout that is not a number, makes every request to `/configs
 why.
 
 **Shutdown is clean.** When a process that created a client exits, an `at_exit` handler closes the client, which
-closes its connection. Puma's workers run it when they stop gracefully, after Ctrl-C or `SIGTERM`.
+closes its connection and reports what the process evaluated since its last report. Puma's workers run it when they
+stop gracefully, after Ctrl-C or `SIGTERM`.
 
 The SDK also supports watching configs and subscribing to the client's events; see `watch` and `on` in
 [`ConfigDirectorClient`](../../../configdirector-server-sdk/lib/configdirector/config_director_client.rb).

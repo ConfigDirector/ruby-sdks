@@ -7,6 +7,7 @@ class ScriptedSdkServer
   STREAM_PATH = "/server/sse/v1"
   HEARTBEAT_PATH = "/server/heartbeat/v1"
   POLLING_PATH = "/server/polling/v1"
+  TELEMETRY_PATH = "/server/telemetry/v1"
 
   class HeldRequest
     attr_reader :path, :headers, :body
@@ -93,6 +94,7 @@ class ScriptedSdkServer
     @port = @listener.addr[1]
     @lock = Mutex.new
     @held_requests_by_path = {}
+    @holds_telemetry_reports = false
     @sockets = []
     @request_readers = []
     @acceptor = Thread.new { accept_connections }
@@ -124,6 +126,14 @@ class ScriptedSdkServer
 
   def next_poll_request(within: 5)
     next_request_to(POLLING_PATH, within: within)
+  end
+
+  def next_telemetry_request(within: 5)
+    next_request_to(TELEMETRY_PATH, within: within)
+  end
+
+  def hold_telemetry_reports
+    @lock.synchronize { @holds_telemetry_reports = true }
   end
 
   def receives_a_request_to?(path, within:)
@@ -160,9 +170,19 @@ class ScriptedSdkServer
     _http_method, path, _http_version = socket.gets("\r\n").to_s.split
     headers = header_lines_on(socket).to_h { |line| line.split(": ", 2) }.transform_keys(&:downcase)
     body = socket.read(Integer(headers.fetch("content-length", "0")))
-    held_requests_to(path) << HeldRequest.new(socket, path, headers, body) unless path.nil?
+    hold_or_accept_at_once(HeldRequest.new(socket, path, headers, body)) unless path.nil?
   rescue IOError, SystemCallError
     nil
+  end
+
+  def hold_or_accept_at_once(request)
+    accepted_at_once = accepts_at_once?(request.path)
+    held_requests_to(request.path) << request
+    request.answer(status: 204) if accepted_at_once
+  end
+
+  def accepts_at_once?(path)
+    path == TELEMETRY_PATH && !@lock.synchronize { @holds_telemetry_reports }
   end
 
   def header_lines_on(socket)

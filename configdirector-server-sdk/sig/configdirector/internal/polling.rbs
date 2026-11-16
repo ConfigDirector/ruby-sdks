@@ -20,17 +20,6 @@ module ConfigDirector
         ) -> PollTiming
       end
 
-      class PollDeadline
-        @monotonic_seconds: ^() -> Float
-        @passes_at: Float
-
-        attr_reader seconds_a_poll_may_take: seconds
-
-        def initialize: (PollTiming timing) -> void
-
-        def seconds_left: () -> Float
-      end
-
       module RefusalDetail
         MAXIMUM_BYTES: Integer
 
@@ -75,7 +64,7 @@ module ConfigDirector
 
         def self.unanswered: (String cause) -> PollAnswer
 
-        def self.timed_out: (seconds seconds_a_poll_may_take) -> PollAnswer
+        def self.timed_out: (String description_of_the_deadline_having_passed) -> PollAnswer
 
         def self.refused: (Integer status) -> PollAnswer
 
@@ -130,7 +119,7 @@ module ConfigDirector
         @endpoint: PollingEndpoint
         @session_id: String
         @last_update_timestamp: String?
-        @deadline: PollDeadline
+        @deadline: Connection::RequestDeadline
         @http_session: Net::HTTP
         @body_text_read: String
 
@@ -138,7 +127,7 @@ module ConfigDirector
           endpoint: PollingEndpoint,
           session_id: String,
           last_update_timestamp: String?,
-          deadline: PollDeadline
+          deadline: Connection::RequestDeadline
         ) -> void
 
         def answer: () -> PollAnswer
@@ -198,7 +187,7 @@ module ConfigDirector
 
         def answer_retried_once_when_unanswered: () -> PollAnswer
 
-        def answer_before: (PollDeadline deadline) -> PollAnswer
+        def answer_before: (Connection::RequestDeadline deadline) -> PollAnswer
 
         def deliver: (PollAnswer answer, ^(String payload_text) -> void deliver_payload_text) -> Symbol
 
