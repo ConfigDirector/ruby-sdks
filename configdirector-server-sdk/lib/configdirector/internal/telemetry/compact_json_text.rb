@@ -8,8 +8,6 @@ module ConfigDirector
       module CompactJsonText
         MOST_LEVELS_WRITTEN = 100
 
-        private_constant :MOST_LEVELS_WRITTEN
-
         def self.of(value)
           text_inside(value, [])
         end
@@ -20,12 +18,17 @@ module ConfigDirector
           when true, false then value.to_s
           when Integer, Float then number_text_of(value)
           when Array, Hash then container_text_inside(value, containers_around_it)
+          when WrittenJson then value.text
           else string_text_of(value.to_s)
           end
         end
 
+        def self.number_javascript_holds?(number)
+          number.abs <= Float::MAX
+        end
+
         def self.number_text_of(number)
-          number.abs <= Float::MAX ? Evaluation::ScalarText.of(number).to_s : "null"
+          number_javascript_holds?(number) ? Evaluation::ScalarText.of(number).to_s : "null"
         end
 
         def self.container_text_inside(container, containers_around_it)

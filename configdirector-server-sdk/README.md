@@ -64,6 +64,32 @@ The `init` after a failed one serves the stored values, the ones set in the mean
 client is not connected, before `init` or after a held or failed one, is stored and reaches the client with the next
 `init` that serves the values.
 
+### Tracked events
+
+`test_client.tracked_events` holds every event the code under test tracked, in call order, as
+`ConfigDirector::Testing::TrackedEvent` (`name`, `context`, `value`, `details`), so a test can assert on them:
+
+```ruby
+require "configdirector/testing"
+
+test_client = ConfigDirector::Testing.create_test_client
+test_client.client.track("checkout-completed", ConfigDirector::Context.new(id: "user-123"), value: 49.9)
+
+expect(test_client.tracked_events).to eq(
+  [
+    ConfigDirector::Testing::TrackedEvent.new(
+      name: "checkout-completed", context: ConfigDirector::Context.new(id: "user-123"), value: 49.9
+    )
+  ]
+)
+```
+
+The record follows the rules of a real report: an event whose name does not have 1 to 150 characters is not
+recorded, and a value or details the SDK would leave out are missing from the record, with a warning logged each time.
+The details are recorded as the SDK sends them, so their keys are Strings and a Time is its ISO 8601 text in UTC. The
+limit of 1,000 events per report does not apply, and nothing is recorded once the client is closed. It is the same
+Array on every call, so `test_client.tracked_events.clear` empties it.
+
 ### Options
 
 `create_test_client(values, timeout: nil, logger: nil)` takes `timeout`, in seconds, which is how long a held `init`

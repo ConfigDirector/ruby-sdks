@@ -5,18 +5,20 @@ module ConfigDirector
     module Telemetry
       TelemetryReport = Data.define(
         :evaluations, :evaluations_collected_since, :evaluations_dropped, :captured_contexts,
-        :captured_contexts_dropped, :invalid_context_wire_entries, :taken_at
+        :captured_contexts_dropped, :invalid_context_wire_entries, :tracked_events, :taken_at
       )
 
       class TelemetryReport
         def empty?
           evaluations.empty? && captured_contexts.empty? && invalid_context_wire_entries.empty? &&
-            evaluations_dropped.zero? && captured_contexts_dropped.zero?
+            tracked_events.empty? && evaluations_dropped.zero? && captured_contexts_dropped.zero?
         end
 
         def wire_events
           {
-            discreteEvents: { capturedContexts: captured_contexts.map(&:wire_context) },
+            discreteEvents: {
+              capturedContexts: captured_contexts.map(&:wire_context), trackedEvents: tracked_events.map(&:wire_entry)
+            },
             aggregatedEvents: { evaluatedConfig: aggregated_evaluations, invalidContext: invalid_context_wire_entries },
             droppedEvents: { evaluatedConfig: evaluations_dropped, capturedContexts: captured_contexts_dropped }
           }

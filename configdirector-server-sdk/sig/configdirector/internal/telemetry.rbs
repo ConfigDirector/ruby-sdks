@@ -10,8 +10,12 @@ module ConfigDirector
                                      | :first_beyond_sample_limit
                                      | :beyond_sample_limit
 
+      type tracked_event_admission = AdmittedTrackedEvent | DroppedTrackedEvent
+
       interface _ClientTelemetry
         def record: (Client::EvaluatedRead evaluated_read) -> nil
+
+        def record_tracked_event: (tracked_event_admission admission) -> Array[String]
 
         def count_invalid_context: (String kind_sample) -> invalid_context_recording
 
@@ -45,10 +49,18 @@ module ConfigDirector
         def self.of: (String text) -> String
       end
 
+      class WrittenJson < Data
+        attr_reader text: String
+
+        def self.new: (text: String) -> instance
+      end
+
       module CompactJsonText
         MOST_LEVELS_WRITTEN: Integer
 
         def self.of: (untyped value) -> String
+
+        def self.number_javascript_holds?: (Integer | Float number) -> bool
 
         def self.text_inside: (untyped value, Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it) -> String
 
@@ -176,6 +188,130 @@ module ConfigDirector
         def wire_event_of: (String? kind_sample) -> wire_event
       end
 
+      class ReportedDetails
+        MOST_TOP_LEVEL_KEYS: Integer
+        MOST_JSON_BYTES: Integer
+        MOST_VALUES_THE_JSON_BYTES_HOLD: Integer
+
+        @values_left: Integer
+
+        def self.json_of: (untyped details) -> WrittenJson?
+
+        def initialize: () -> void
+
+        def reported_form_of: (Hash[untyped, untyped] details) -> Hash[String, untyped]?
+
+        private
+
+        def form_of: (untyped value, Integer level) -> untyped
+
+        def count_one_more_value: () -> void
+
+        def container_form_of: (
+          Array[untyped] | Hash[untyped, untyped] container,
+          Integer level
+        ) -> (Array[untyped] | Hash[String, untyped])
+
+        def name_of: (untyped key) -> String
+      end
+
+      class TrackedEventEntry < Data
+        attr_reader name: String
+        attr_reader context_kind: String?
+        attr_reader context_identifier: String?
+        attr_reader value: (Integer | Float)?
+        attr_reader details: WrittenJson?
+        attr_reader happened_at: Time
+
+        def self.new: (
+          name: String,
+          context_kind: String?,
+          context_identifier: String?,
+          value: (Integer | Float)?,
+          details: WrittenJson?,
+          happened_at: Time
+        ) -> instance
+
+        def self.of: (
+          name: String,
+          context: Context?,
+          value: (Integer | Float)?,
+          details: WrittenJson?,
+          happened_at: Time
+        ) -> TrackedEventEntry
+
+        def wire_entry: () -> Hash[Symbol, untyped]
+      end
+
+      class AdmittedTrackedEvent < Data
+        attr_reader entry: TrackedEventEntry
+        attr_reader context: Context?
+        attr_reader warnings: Array[Symbol]
+
+        def self.new: (entry: TrackedEventEntry, context: Context?, warnings: Array[Symbol]) -> instance
+      end
+
+      class DroppedTrackedEvent < Data
+        attr_reader warnings: Array[Symbol]
+
+        def self.new: (warnings: Array[Symbol]) -> instance
+      end
+
+      class ReportedPart[T] < Data
+        attr_reader reported: T?
+        attr_reader warnings: Array[Symbol]
+
+        def self.new: [T] (reported: T?, warnings: Array[Symbol]) -> ReportedPart[T]
+
+        def self.not_given: () -> ReportedPart[untyped]
+
+        def self.of: [T] (T reported) -> ReportedPart[T]
+
+        def self.left_out_with: (Symbol warning) -> ReportedPart[untyped]
+      end
+
+      module TrackedEventAdmission
+        NAME_MAXIMUM_CHARACTERS: Integer
+
+        def self.of: (
+          name: untyped,
+          context: Context?,
+          value: untyped,
+          details: untyped,
+          happened_at: Time
+        ) -> tracked_event_admission
+
+        def self.reported_name_of: (untyped name) -> String?
+
+        def self.reported_value_of: (untyped value) -> ReportedPart[Integer | Float]
+
+        def self.reported_details_of: (untyped details) -> ReportedPart[WrittenJson]
+      end
+
+      module TrackedEventWarning
+        MESSAGE_BY_WARNING: Hash[Symbol, String]
+
+        def self.message_of: (Symbol warning) -> String
+      end
+
+      class TrackedEventQueue
+        EVENTS_PER_REPORT: Integer
+
+        @warnings_logged_for_this_report: Array[Symbol]
+
+        attr_reader entries: Array[TrackedEventEntry]
+
+        def initialize: () -> void
+
+        def add: (tracked_event_admission admission) -> Array[String]
+
+        def discard: () -> void
+
+        private
+
+        def keep: (tracked_event_admission admission) -> Array[Symbol]
+      end
+
       class TelemetryReport < Data
         attr_reader evaluations: Array[ReportedEvaluation]
         attr_reader evaluations_collected_since: Time?
@@ -183,6 +319,7 @@ module ConfigDirector
         attr_reader captured_contexts: Array[ReportedContext]
         attr_reader captured_contexts_dropped: Integer
         attr_reader invalid_context_wire_entries: Array[wire_event]
+        attr_reader tracked_events: Array[TrackedEventEntry]
         attr_reader taken_at: Time
 
         def self.new: (
@@ -192,6 +329,7 @@ module ConfigDirector
           captured_contexts: Array[ReportedContext],
           captured_contexts_dropped: Integer,
           invalid_context_wire_entries: Array[wire_event],
+          tracked_events: Array[TrackedEventEntry],
           taken_at: Time
         ) -> instance
 
@@ -213,6 +351,7 @@ module ConfigDirector
         @evaluations_limit: Integer
         @captured_contexts_limit: Integer
         @invalid_context_submissions: InvalidContextSubmissions
+        @tracked_event_queue: TrackedEventQueue
         @collecting_process_id: Integer
         @evaluations: Array[ReportedEvaluation]
         @evaluations_collected_since: Time?
@@ -224,13 +363,15 @@ module ConfigDirector
 
         def add: (Client::EvaluatedRead evaluated_read) -> void
 
+        def add_tracked_event: (tracked_event_admission admission) -> Array[String]
+
         def count_invalid_context: (String kind_sample) -> invalid_context_recording
 
         def keep_what_the_parent_process_collected: () -> void
 
         def taken_for_a_report: () -> TelemetryReport
 
-        def discard_evaluations_and_captured_contexts: () -> void
+        def discard_the_queued_events: () -> void
 
         private
 
@@ -334,6 +475,16 @@ module ConfigDirector
         include _ClientTelemetry
 
         def self.for_a_client_with: (**untyped) -> DiscardedTelemetry
+      end
+
+      class TestClientTelemetry < DiscardedTelemetry
+        attr_reader tracked_events: Array[Testing::TrackedEvent]
+
+        def initialize: () -> void
+
+        private
+
+        def tracked_event_recorded_from: (AdmittedTrackedEvent admission) -> Testing::TrackedEvent
       end
 
       class ReportedTelemetry

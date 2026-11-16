@@ -22,10 +22,20 @@ module ConfigDirector
       #   the test ends; the test client has no +close+ of its own.
       attr_reader :client
 
+      # @return [Array<TrackedEvent>] every event the code under test tracked through {#client}, in the order it was
+      #   tracked, as the SDK would report it: an event whose name does not have 1 to 150 characters is not
+      #   recorded, a value or details the SDK would leave out are +nil+ in the record, and a context whose kind is
+      #   invalid is not recorded with its event. Each of these logs a warning every time, since a test client sends
+      #   no reports. The limit of 1,000 events per report does not apply, and nothing is recorded once the client
+      #   is closed. It is the same Array on every call and grows as events are tracked, so a test can empty it with
+      #   +clear+.
+      attr_reader :tracked_events
+
       # @api private
-      def initialize(client, connection)
+      def initialize(client, connection, tracked_events)
         @client = client
         @connection = connection
+        @tracked_events = tracked_events
       end
 
       # Stores a value under a config key and, while the client is connected, delivers an update that carries only

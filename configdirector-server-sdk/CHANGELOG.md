@@ -119,6 +119,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   evaluates, with its first report 5 seconds after the fork. What was evaluated before the fork is reported once,
   by the parent. After `Process.daemon`, where the original process ends at once, such a client reports what was
   evaluated before it from the process `Process.daemon` leaves.
+- `track(event_name, context = nil, value: nil, details: nil)` reports to ConfigDirector that something happened,
+  such as a completed checkout, so experiments can count it. The event is sent with the next report, with the time
+  of the call, and `close` sends the events tracked since the last one. `track` returns `nil`, never raises, and
+  does nothing in offline mode or once the client is closed. A Symbol name is read as its name. The context's kind
+  and `id` are sent when it has an `id` and is not anonymous, and it is not added to the reported contexts. A
+  context with an invalid kind is logged and counted as for a read, and the event is sent without it; a context
+  that is not a `Context` drops the event with a warning.
+- An event whose name does not have 1 to 150 characters is dropped, and so are the events beyond the first 1,000
+  of a report. A `value` is sent when it is a finite Float or an Integer no larger than the largest Float, and
+  left out otherwise. `details` are left out when they are not a Hash, have more than 20 top-level keys, are
+  larger than 1,024 bytes as JSON, are nested deeper than 100 levels, or hold anything but Strings, numbers,
+  `true`, `false`, `nil`, Symbols, Times and Arrays and Hashes of them with String or Symbol keys. A Symbol is
+  sent as its name, a Time as its ISO 8601 text in UTC, and a Float that is not finite as `null`. The event is
+  still sent without what was left out. Each of these logs one warning per report.
 - `close` can be called more than once, and `closed?` says whether it was. Afterwards the client is not
   ready, every read returns its in-code default value with the reason `"client-not-ready"`,
   `get_all_configs` is empty, and `init` raises `ConfigDirectorValidationError`.
@@ -198,3 +212,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   error is logged and the `connection_error` handlers receive a `ConfigDirectorConnectionError` of status 401, each
   time, and then the failed `init` returns, at once when nothing held it. A client that was ready keeps serving its
   values through a held or failed `init`.
+- `TestClient#tracked_events` returns every event the code under test tracked through the client, in call order, as
+  `ConfigDirector::Testing::TrackedEvent` (`name`, `context`, `value`, `details`), which compares by value. It
+  follows the rules of a real report and logs each warning every time; the limit of 1,000 per report does not apply,
+  and nothing is recorded once the client is closed. The details are recorded as the SDK sends them, with String
+  keys. It is the same Array on every call and grows as events are tracked, so a test can empty it with `clear`.

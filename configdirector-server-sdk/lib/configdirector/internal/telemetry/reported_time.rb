@@ -5,7 +5,7 @@ module ConfigDirector
     module Telemetry
       module ReportedTime
         def self.of(time)
-          time.utc.strftime("%Y-%m-%dT%H:%M:%S.%LZ")
+          time.getutc.strftime("%Y-%m-%dT%H:%M:%S.%LZ")
         end
       end
     end

@@ -230,6 +230,7 @@ module ConfigDirector
     @event_handlers: Internal::Client::EventHandlers
     @watches: Internal::Client::Watches
     @config_reader: Internal::Client::ConfigReader
+    @event_tracking: Internal::Client::EventTracking
     @client_connection: Internal::Client::ClientConnection
 
     def initialize: (
@@ -257,6 +258,13 @@ module ConfigDirector
     def unwatch: (String config_key, ?Proc? callback) -> nil
 
     def unwatch_all: () -> nil
+
+    def track: (
+      String | Symbol event_name,
+      ?Context? context,
+      ?value: (Integer | Float)?,
+      ?details: Hash[String | Symbol, untyped]?
+    ) -> nil
 
     def on: (Symbol event_name, ?_EventHandler? handler) ?{ (*untyped) -> void } -> Subscription
 

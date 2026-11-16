@@ -8,6 +8,7 @@ class ScriptedSdkServer
   HEARTBEAT_PATH = "/server/heartbeat/v1"
   POLLING_PATH = "/server/polling/v1"
   TELEMETRY_PATH = "/server/telemetry/v1"
+  LEVELS_OF_JSON_THE_SDK_SERVER_READS = 128
 
   class HeldRequest
     attr_reader :path, :headers, :body
@@ -20,7 +21,7 @@ class ScriptedSdkServer
     end
 
     def json
-      JSON.parse(body)
+      JSON.parse(body, max_nesting: LEVELS_OF_JSON_THE_SDK_SERVER_READS)
     end
 
     def answer(status:, headers: {}, body: "")

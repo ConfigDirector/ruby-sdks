@@ -6,15 +6,15 @@ module ConfigDirector
   # The ConfigDirector SDK client. Create one with {ConfigDirector.create_client}, call {#init} when your
   # application starts and {#close} when it shuts down. A client can be shared between threads.
   #
-  # The client reports what it evaluates to ConfigDirector, on a thread of the SDK that {#init} starts: the
-  # first report 5 seconds after {#init}, then one every {TelemetryOptions#flush_interval}. {#close} sends the
-  # last one, so a process that exits without calling it does not report its last reads. An offline client
-  # reports nothing.
+  # The client reports what it evaluates and the events it {#track}s to ConfigDirector, on a thread of the SDK that
+  # {#init} starts: the first report 5 seconds after {#init}, then one every {TelemetryOptions#flush_interval}.
+  # {#close} sends the last one, so a process that exits without calling it does not report its last reads and
+  # events. An offline client reports nothing.
   #
   # When the process forks after {#init}, as Puma does for its workers in cluster mode, the client starts its
   # own connection in the forked process by itself. There it serves the values it had at the fork at once, and
   # its handlers and watches keep being called, on a thread of the SDK. It reports what the forked process
-  # evaluates from there, and what was evaluated before the fork from the parent.
+  # evaluates and tracks from there, and what was evaluated and tracked before the fork from the parent.
   class ConfigDirectorClient
     WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
       "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
@@ -37,6 +37,7 @@ module ConfigDirector
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
       @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, telemetry, @log)
+      @event_tracking = Internal::Client::EventTracking.new(mode: mode, telemetry: telemetry, log: @log)
       @client_connection = client_connection_over(connection, telemetry)
     end
 
@@ -180,6 +181,41 @@ module ConfigDirector
       @watches.remove_all
     end
 
+    # Reports to ConfigDirector that something happened, such as a completed checkout, so it can be counted. The
+    # event is sent with the next telemetry report, with the time of the call, and {#close} sends the events tracked
+    # since the last report. It returns +nil+, never raises, and does nothing in offline mode or once the client is
+    # closed.
+    #
+    # An event counts for an experiment only when it is tracked for a context with an +id+, the one the experiment's
+    # config was evaluated for. Without a context, or for a context without an +id+, the event is still reported. The
+    # +id+ of an anonymous context is not sent. When the context's kind is invalid, the error is logged as it is for a
+    # read and the event is reported without the context. When the context is not a {Context}, the event is not
+    # reported and a warning is logged.
+    #
+    # A report holds at most 1,000 tracked events, and events beyond that are not reported. An event whose name does
+    # not have 1 to 150 characters is not reported. A value that is not a finite number, and details that are not a
+    # Hash, have more than 20 top-level keys, are larger than 1,024 bytes as JSON, are nested deeper than 100 levels
+    # or hold anything but what +details+ lists, are left out, and the event is still reported. Each of these logs
+    # one warning per report.
+    #
+    # @example
+    #   client.track(
+    #     "checkout-completed", ConfigDirector::Context.new(id: "user-123"), value: 49.9, details: { plan: "pro" }
+    #   )
+    #
+    # @param event_name [String, Symbol] the event's name, 1 to 150 characters. A Symbol is read as its name.
+    # @param context [Context, nil] the context the event happened for
+    # @param value [Integer, Float, nil] a number the event measures, such as an amount of money, a count or a
+    #   duration
+    # @param details [Hash{String, Symbol => Object}, nil] details of the event, such as the plan a customer chose:
+    #   Strings, numbers, +true+, +false+, +nil+, Symbols, Times, and Arrays and Hashes of them, with String or Symbol
+    #   keys. A Symbol is sent as its name, a Time as its ISO 8601 text in UTC and a Float that is not finite as
+    #   +null+.
+    # @return [void]
+    def track(event_name, context = nil, value: nil, details: nil)
+      @event_tracking.track(event_name, context, value, details) unless closed?
+    end
+
     # Registers a handler for one of the events the client emits. A handler registered twice runs twice.
     #
     # - +:client_ready+ handlers are called with no argument once, when the client first receives values
@@ -233,8 +269,8 @@ module ConfigDirector
     # read returns its in-code default value and {#get_all_configs} is empty. It is safe to call more than
     # once.
     #
-    # Before it returns, it sends what the client evaluated since its last report. It waits up to 5 seconds
-    # for ConfigDirector to answer, and up to 5 more when a report was already being sent.
+    # Before it returns, it sends what the client evaluated and tracked since its last report. It waits up to 5
+    # seconds for ConfigDirector to answer, and up to 5 more when a report was already being sent.
     #
     # @return [void]
     def close

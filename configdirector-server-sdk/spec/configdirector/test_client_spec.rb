@@ -813,4 +813,155 @@ RSpec.describe "A test client" do
     expect(initializing.join(5)).to eq(initializing)
     expect(test_client.client.closed?).to be(true)
   end
+
+  describe "tracked events" do
+    it "records an event tracked through its client with its context, value and details" do
+      test_client = test_client_serving
+
+      test_client.client.track(
+        "checkout-completed", ConfigDirector::Context.new(id: "user-123"), value: 49.9, details: { "plan" => "pro" }
+      )
+
+      expect(test_client.tracked_events).to eq(
+        [
+          ConfigDirector::Testing::TrackedEvent.new(
+            name: "checkout-completed", context: ConfigDirector::Context.new(id: "user-123"), value: 49.9,
+            details: { "plan" => "pro" }
+          )
+        ]
+      )
+      expect(test_client.tracked_events.first.name).to eq("checkout-completed")
+      expect(test_client.tracked_events.first.context).to eq(ConfigDirector::Context.new(id: "user-123"))
+      expect(test_client.tracked_events.first.value).to eq(49.9)
+      expect(test_client.tracked_events.first.details).to eq("plan" => "pro")
+    end
+
+    it "records an event that cannot be changed" do
+      test_client = test_client_serving
+
+      test_client.client.track("checkout-completed", details: { "cart" => { "skus" => ["a-1"] } })
+
+      tracked_event = test_client.tracked_events.first
+      expect(tracked_event).to be_frozen
+      expect(tracked_event.name).to be_frozen
+      expect(tracked_event.details.fetch("cart").fetch("skus")).to be_frozen
+    end
+
+    it "records events in the order they were tracked, without a context, value or details that were not given" do
+      test_client = test_client_serving
+
+      test_client.client.track("cart-viewed")
+      test_client.client.track("checkout-completed")
+
+      expect(test_client.tracked_events).to eq(
+        [
+          ConfigDirector::Testing::TrackedEvent.new(name: "cart-viewed"),
+          ConfigDirector::Testing::TrackedEvent.new(name: "checkout-completed")
+        ]
+      )
+      expect(test_client.tracked_events.first.context).to be_nil
+      expect(test_client.tracked_events.first.value).to be_nil
+      expect(test_client.tracked_events.first.details).to be_nil
+    end
+
+    it "returns the same list on every call, which grows as events are tracked" do
+      test_client = test_client_serving
+      tracked_events = test_client.tracked_events
+
+      test_client.client.track("checkout-completed")
+
+      expect(test_client.tracked_events).to equal(tracked_events)
+      expect(tracked_events.map(&:name)).to eq(["checkout-completed"])
+    end
+
+    it "lets a test empty its list" do
+      test_client = test_client_serving
+      test_client.client.track("cart-viewed")
+
+      test_client.tracked_events.clear
+      test_client.client.track("checkout-completed")
+
+      expect(test_client.tracked_events.map(&:name)).to eq(["checkout-completed"])
+    end
+
+    it "does not record an event with an empty name, logging the warning each time without the batch sentence" do
+      test_client = test_client_serving
+
+      2.times { test_client.client.track("") }
+
+      expect(test_client.tracked_events).to eq([])
+      expect(logger.messages_at(:warn)).to eq(
+        [
+          "[ConfigDirectorClient] A tracked event was not reported because its name does not have 1 to 150 " \
+          "characters.",
+          "[ConfigDirectorClient] A tracked event was not reported because its name does not have 1 to 150 " \
+          "characters."
+        ]
+      )
+    end
+
+    it "records an event without the value and details the SDK would leave out, logging each warning" do
+      test_client = test_client_serving
+
+      test_client.client.track("checkout-completed", value: Float::NAN, details: { 1 => "first" })
+
+      expect(test_client.tracked_events).to eq([ConfigDirector::Testing::TrackedEvent.new(name: "checkout-completed")])
+      expect(logger.messages_at(:warn)).to eq(
+        [
+          "[ConfigDirectorClient] A tracked event was reported without its value because the value is not a " \
+          "finite number.",
+          "[ConfigDirectorClient] A tracked event was reported without its details because they are not an object, " \
+          "have more than 20 top-level keys, are larger than 1024 bytes as JSON, or cannot be written as JSON."
+        ]
+      )
+    end
+
+    it "records the details as the SDK sends them" do
+      test_client = test_client_serving
+
+      test_client.client.track(
+        "checkout-completed",
+        details: { plan: :pro, paid_at: Time.utc(2026, 11, 15, 10, 30), ratio: Float::INFINITY, total: 50.0 }
+      )
+
+      expect(test_client.tracked_events.first.details).to eq(
+        "plan" => "pro", "paid_at" => "2026-11-15T10:30:00.000Z", "ratio" => nil, "total" => 50
+      )
+      expect(test_client.tracked_events.first.details.fetch("total")).to eql(50)
+    end
+
+    it "records an event whose context kind is invalid without the context" do
+      test_client = test_client_serving
+
+      test_client.client.track("checkout-completed", ConfigDirector::Context.new(id: "device-1", kind: "Device"))
+
+      expect(test_client.tracked_events).to eq([ConfigDirector::Testing::TrackedEvent.new(name: "checkout-completed")])
+    end
+
+    it "records more than 1,000 events" do
+      test_client = test_client_serving
+
+      1_001.times { |number| test_client.client.track("event-#{number}") }
+
+      expect(test_client.tracked_events.length).to eq(1_001)
+    end
+
+    it "records nothing once its client is closed" do
+      test_client = test_client_serving
+      test_client.client.close
+
+      test_client.client.track("checkout-completed")
+
+      expect(test_client.tracked_events).to eq([])
+    end
+
+    it "keeps what it recorded at replace_values" do
+      test_client = test_client_serving
+      test_client.client.track("checkout-completed")
+
+      test_client.replace_values({ "new-checkout" => true })
+
+      expect(test_client.tracked_events.map(&:name)).to eq(["checkout-completed"])
+    end
+  end
 end

@@ -5,6 +5,8 @@ require_relative "internal/connection/test_client_values"
 require_relative "internal/connection/test_client_initializations"
 require_relative "internal/connection/payloads_delivered_in_turn"
 require_relative "internal/connection/in_memory_connection"
+require_relative "internal/telemetry/test_client_telemetry"
+require_relative "testing/tracked_event"
 require_relative "testing/test_client"
 
 module ConfigDirector

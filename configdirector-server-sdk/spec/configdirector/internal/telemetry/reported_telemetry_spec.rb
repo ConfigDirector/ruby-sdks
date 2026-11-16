@@ -433,4 +433,40 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
       expect(no_report_arrives_within?(0.3)).to be(true)
     end
   end
+
+  describe "a tracked event warning" do
+    let(:name_warning) do
+      "A tracked event was not reported because its name does not have 1 to 150 characters. " \
+        "Further tracked events like it are not logged until the next telemetry batch is sent."
+    end
+
+    def tracked_event_named(name)
+      ConfigDirector::Internal::Telemetry::TrackedEventAdmission.of(
+        name: name, context: nil, value: nil, details: nil, happened_at: Time.now
+      )
+    end
+
+    it "is returned to log once until the next report, and again for an event tracked after it" do
+      telemetry = telemetry_reporting
+      warnings_before_the_report = Array.new(2) { telemetry.record_tracked_event(tracked_event_named("")) }
+      telemetry.record_tracked_event(tracked_event_named("checkout-completed"))
+      telemetry.start_reporting
+      sdk_server.next_telemetry_request.answer(status: 204)
+
+      warnings_after_the_report = telemetry.record_tracked_event(tracked_event_named(""))
+
+      expect(warnings_before_the_report).to eq([[name_warning], []])
+      expect(warnings_after_the_report).to eq([name_warning])
+    end
+
+    it "is not returned after a refusal that stopped the reports" do
+      telemetry = telemetry_reporting
+      telemetry.record_tracked_event(tracked_event_named("checkout-completed"))
+      telemetry.start_reporting
+      sdk_server.next_telemetry_request.answer(status: 401)
+      Waiting.wait_up_to(2) { logger.messages_at(:warn).any? }
+
+      expect(telemetry.record_tracked_event(tracked_event_named(""))).to eq([])
+    end
+  end
 end

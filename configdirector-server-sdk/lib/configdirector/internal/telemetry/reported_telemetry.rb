@@ -55,6 +55,12 @@ module ConfigDirector
           nil
         end
 
+        def record_tracked_event(admission)
+          @lock.synchronize do
+            COLLECTS_BY_REPORTING.fetch(@reporting) ? @collected_telemetry.add_tracked_event(admission) : []
+          end
+        end
+
         def count_invalid_context(kind_sample)
           @lock.synchronize { @collected_telemetry.count_invalid_context(kind_sample) }
         end
@@ -66,7 +72,6 @@ module ConfigDirector
             @reporting = :on_the_schedule
             @schedule.start { report_what_was_collected }
           end
-          nil
         end
 
         def restart_in_a_forked_process(forked_through)
@@ -116,7 +121,7 @@ module ConfigDirector
         def stop_collecting
           @lock.synchronize do
             @reporting = :stopped_by_a_refusal if @reporting == :on_the_schedule
-            @collected_telemetry.discard_evaluations_and_captured_contexts
+            @collected_telemetry.discard_the_queued_events
           end
           @schedule.stop
         end

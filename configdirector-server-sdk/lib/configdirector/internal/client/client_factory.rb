@@ -40,8 +40,12 @@ module ConfigDirector
           ClientOptionsValidation.reject_an_unusable_logger(logger)
           logger ||= Logging::DefaultLogger.writing_from(nil)
           connection = Connection::InMemoryConnection.new(values, timeout_seconds: timeout, logger: logger)
+          telemetry = Telemetry::TestClientTelemetry.new
 
-          Testing::TestClient.new(client_over_an_in_memory_connection(connection, timeout, logger), connection)
+          Testing::TestClient.new(
+            client_over_an_in_memory_connection(connection, telemetry, timeout, logger), connection,
+            telemetry.tracked_events
+          )
         end
 
         def self.client_with_usable_options(
@@ -74,10 +78,10 @@ module ConfigDirector
           )
         end
 
-        def self.client_over_an_in_memory_connection(connection, timeout, logger)
+        def self.client_over_an_in_memory_connection(connection, telemetry, timeout, logger)
           ConfigDirectorClient.new(
-            connection: connection, telemetry: Telemetry::DiscardedTelemetry.new, mode: "test", timeout: timeout,
-            metadata: Metadata.new, logger: logger, hooks: ClientHooks.new
+            connection: connection, telemetry: telemetry, mode: "test", timeout: timeout, metadata: Metadata.new,
+            logger: logger, hooks: ClientHooks.new
           )
         end
 

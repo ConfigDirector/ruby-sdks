@@ -12,6 +12,10 @@ module ConfigDirector
           nil
         end
 
+        def record_tracked_event(_admission)
+          []
+        end
+
         def count_invalid_context(_kind_sample)
           :new_kind_sample
         end

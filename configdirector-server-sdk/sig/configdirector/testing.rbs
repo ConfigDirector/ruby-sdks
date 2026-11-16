@@ -11,7 +11,13 @@ module ConfigDirector
 
       attr_reader client: ConfigDirectorClient
 
-      def initialize: (ConfigDirectorClient client, Internal::Connection::InMemoryConnection connection) -> void
+      attr_reader tracked_events: Array[TrackedEvent]
+
+      def initialize: (
+        ConfigDirectorClient client,
+        Internal::Connection::InMemoryConnection connection,
+        Array[TrackedEvent] tracked_events
+      ) -> void
 
       def set_value: (String | Symbol config_key, untyped value) -> nil
 
@@ -24,6 +30,22 @@ module ConfigDirector
       def complete_initialization: () -> nil
 
       def fail_initialization: () -> nil
+    end
+
+    class TrackedEvent
+      include Internal::ComparedByValue
+
+      attr_reader name: String
+      attr_reader context: Context?
+      attr_reader value: (Integer | Float)?
+      attr_reader details: Hash[String, untyped]?
+
+      def initialize: (
+        name: String,
+        ?context: Context?,
+        ?value: (Integer | Float)?,
+        ?details: Hash[String, untyped]?
+      ) -> void
     end
   end
 end

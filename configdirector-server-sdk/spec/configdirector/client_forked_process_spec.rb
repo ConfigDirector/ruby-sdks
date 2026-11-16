@@ -479,6 +479,12 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     end
   end
 
+  def names_of_the_events_tracked_in(telemetry_request)
+    telemetry_request.json.fetch("discreteEvents").fetch("trackedEvents").map do |tracked_event|
+      tracked_event.fetch("name")
+    end
+  end
+
   it "reports from the forked process what was read there, and from the parent what it read before the fork" do
     streams_opened_with(payload_serving_monday)
     client = client_connecting_to(sdk_server.url)
@@ -499,6 +505,26 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     expect(report_of_the_forked_process.json.fetch("metaContext")).to eq(
       report_of_the_parent.json.fetch("metaContext")
     )
+    expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0)).to be(false)
+  end
+
+  it "reports from the forked process the events tracked there, and from the parent those it tracked before the fork" do
+    streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+    client.track("tracked-before-the-fork")
+
+    forked_process = ForkedProcess.reporting do
+      client.track("tracked-in-the-forked-process")
+      client.close
+    end
+    forked_process.report
+    report_of_the_forked_process = sdk_server.next_telemetry_request
+    client.close
+    report_of_the_parent = sdk_server.next_telemetry_request
+
+    expect(names_of_the_events_tracked_in(report_of_the_forked_process)).to eq(["tracked-in-the-forked-process"])
+    expect(names_of_the_events_tracked_in(report_of_the_parent)).to eq(["tracked-before-the-fork"])
     expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0)).to be(false)
   end
 

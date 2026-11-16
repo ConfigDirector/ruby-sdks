@@ -13,8 +13,9 @@ module ConfigDirector
           @evaluations_limit = (event_queue_limit * SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS).ceil
           @captured_contexts_limit = (event_queue_limit * SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS).floor
           @invalid_context_submissions = InvalidContextSubmissions.new
+          @tracked_event_queue = TrackedEventQueue.new
           @collecting_process_id = Process.pid
-          discard_evaluations_and_captured_contexts
+          discard_the_queued_events
         end
 
         def add(evaluated_read)
@@ -27,6 +28,11 @@ module ConfigDirector
 
           @evaluations.shift
           @evaluations_dropped += 1
+        end
+
+        def add_tracked_event(admission)
+          leave_to_the_parent_process_what_it_collected
+          @tracked_event_queue.add(admission)
         end
 
         def count_invalid_context(kind_sample)
@@ -47,16 +53,17 @@ module ConfigDirector
             evaluations_dropped: @evaluations_dropped, captured_contexts: @captured_contexts.values,
             captured_contexts_dropped: @captured_contexts_dropped,
             invalid_context_wire_entries: @invalid_context_submissions.wire_entries_taken_for_a_report(taken_at),
-            taken_at: taken_at
-          ).tap { discard_evaluations_and_captured_contexts }
+            tracked_events: @tracked_event_queue.entries, taken_at: taken_at
+          ).tap { discard_the_queued_events }
         end
 
-        def discard_evaluations_and_captured_contexts
+        def discard_the_queued_events
           @evaluations = []
           @evaluations_collected_since = nil
           @evaluations_dropped = 0
           @captured_contexts = {}
           @captured_contexts_dropped = 0
+          @tracked_event_queue.discard
         end
 
         private
@@ -65,7 +72,7 @@ module ConfigDirector
           return if @collecting_process_id == Process.pid
 
           @collecting_process_id = Process.pid
-          discard_evaluations_and_captured_contexts
+          discard_the_queued_events
           @invalid_context_submissions.discard
         end
 

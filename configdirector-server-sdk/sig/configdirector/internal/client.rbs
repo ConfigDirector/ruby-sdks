@@ -126,6 +126,19 @@ module ConfigDirector
 
       type arrival_of_values = :after_close | :first_values | :newer_values
 
+      class EventTracking
+        TRACKS_EVENTS_BY_MODE: Hash[String, bool]
+
+        @tracks_events: bool
+        @telemetry: Telemetry::_ClientTelemetry
+        @log: Logging::ClientLog
+        @context_admission: ContextAdmission
+
+        def initialize: (mode: String, telemetry: Telemetry::_ClientTelemetry, log: Logging::ClientLog) -> void
+
+        def track: (untyped event_name, untyped context, untyped value, untyped details) -> nil
+      end
+
       class ConfigReader
         @serving_state: ServingState
         @event_handlers: EventHandlers
@@ -288,6 +301,7 @@ module ConfigDirector
 
         def self.client_over_an_in_memory_connection: (
           Connection::InMemoryConnection connection,
+          Telemetry::TestClientTelemetry telemetry,
           seconds timeout,
           _Logger & Object logger
         ) -> ConfigDirectorClient
