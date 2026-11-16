@@ -12,7 +12,7 @@ module ConfigDirector
         private_constant :ATTRIBUTE_KIND, :SEGMENT_KIND
 
         def self.condition_defined_by(wire_condition)
-          kind = kind_of(wire_condition)
+          kind = kind_named_in(wire_condition)
           case kind
           when ATTRIBUTE_KIND then attribute_condition_defined_by(wire_condition)
           when SEGMENT_KIND then segment_condition_defined_by(wire_condition)
@@ -28,7 +28,7 @@ module ConfigDirector
           end
 
           wire_condition_group.map do |wire_condition|
-            unless wire_condition.is_a?(Hash) && kind_of(wire_condition) == ATTRIBUTE_KIND
+            unless wire_condition.is_a?(Hash) && kind_named_in(wire_condition) == ATTRIBUTE_KIND
               raise UnreadableDefinition, "a condition group of the segment holds attribute conditions only"
             end
 
@@ -36,7 +36,7 @@ module ConfigDirector
           end
         end
 
-        def self.kind_of(wire_condition)
+        def self.kind_named_in(wire_condition)
           kind = wire_condition["kind"]
 
           kind.nil? ? ATTRIBUTE_KIND : kind
@@ -66,7 +66,7 @@ module ConfigDirector
           )
         end
 
-        private_class_method :kind_of, :attribute_condition_defined_by, :target_value_text_of,
+        private_class_method :kind_named_in, :attribute_condition_defined_by, :target_value_text_of,
                              :segment_condition_defined_by
       end
     end

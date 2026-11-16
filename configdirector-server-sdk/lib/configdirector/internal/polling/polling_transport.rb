@@ -18,9 +18,13 @@ module ConfigDirector
         end
 
         def open(report_unrecoverable_error:, &deliver_payload_text)
-          what_follows_the_first_poll = @session.poll(report_unrecoverable_error, deliver_payload_text)
+          what_follows_the_first_poll = @session.poll(
+            report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text
+          )
           unless what_follows_the_first_poll == :end_of_polling
-            poll_on_every_interval_unless_closed(report_unrecoverable_error, deliver_payload_text)
+            poll_on_every_interval_unless_closed(
+              report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text
+            )
           end
 
           what_follows_the_first_poll
@@ -29,7 +33,9 @@ module ConfigDirector
         def restart_in_a_forked_process(report_unrecoverable_error:, &deliver_payload_text)
           @session = @session.session_of_a_forked_process
           start_the_polling_thread_unless_closed do
-            @session.poll_at_once_and_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+            @session.poll_at_once_and_on_every_interval(
+              report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text
+            )
           end
         end
 
@@ -46,9 +52,11 @@ module ConfigDirector
 
         private
 
-        def poll_on_every_interval_unless_closed(report_unrecoverable_error, deliver_payload_text)
+        def poll_on_every_interval_unless_closed(report_unrecoverable_error:, &deliver_payload_text)
           start_the_polling_thread_unless_closed do
-            @session.poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+            @session.poll_on_every_interval(
+              report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text
+            )
           end
         end
 

@@ -8,9 +8,7 @@ module ConfigDirector
           new
         end
 
-        def record(_evaluated_read)
-          nil
-        end
+        def record_evaluation(_evaluated_read); end
 
         def record_tracked_event(_admission)
           []
@@ -20,17 +18,11 @@ module ConfigDirector
           :new_kind_sample
         end
 
-        def start_reporting
-          nil
-        end
+        def start_reporting; end
 
-        def restart_in_a_forked_process(_forked_through)
-          nil
-        end
+        def restart_in_a_forked_process(_forked_through); end
 
-        def close
-          nil
-        end
+        def close; end
       end
     end
   end

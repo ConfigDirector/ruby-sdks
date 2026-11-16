@@ -20,7 +20,7 @@ module ConfigDirector
           @context_admission = ContextAdmission.new(log, telemetry)
         end
 
-        def track(event_name, context, value, details)
+        def track(event_name, context, value:, details:)
           return unless @tracks_events
 
           admission = Telemetry::TrackedEventAdmission.of(

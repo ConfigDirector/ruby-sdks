@@ -186,7 +186,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   watches still run and the read still returns its value.
 - `close` also removes every handler, hook and watch.
 - `Context`, `Variation`, `ConfigState`, `ConfigEvaluation`, `ConfigsUpdatedEvent`, `ConfigEvaluatedEvent`,
-  `ConnectionErrorEvent` and the option objects compare by value with `==`, and cannot be changed once built.
+  `ConnectionErrorEvent`, `Testing::TrackedEvent` and the option objects are Ruby `Data` objects: they compare by
+  value with `==`, cannot be changed once built, and offer `with`, which checks the new values as `new` does,
+  `to_h` and pattern matching, such as `case evaluation in { reason: "found-match" }`.
+  Whether a context is anonymous is read with `anonymous?`, and whether an evaluation returned the in-code default
+  value with `default_value?`.
+- `ConfigDirectorClient#inspect` shows the connection mode and whether the client is ready and closed, such as
+  `#<ConfigDirector::ConfigDirectorClient mode="streaming" ready=true closed=false>`, with the mode `"test"` for the
+  client of a test client, and never the server SDK key; `pp` and the Rails console show the same.
+- The RBS signatures in the gem type `get_value`, `evaluate` and the block of `watch` by the class of the in-code
+  default value, so a type checker such as Steep sees `get_value("new-checkout", false)` as a boolean and
+  `get_value("checkout-settings", {})` as a Hash with String keys. A Hash in-code default value with Symbol keys is
+  typed as a Hash with String or Symbol keys, since the read returns it as given when it falls back to it.
 - A client on which `init` was called before the process forked, as under Puma in cluster mode, Unicorn or
   Passenger, starts its own connection in the forked process by itself. It serves the values it was copied with at
   once, and handlers and watches registered before the fork keep firing there. The parent's connection is not

@@ -65,12 +65,34 @@ which proves that a change to a gem has not broken the code an application write
 
 `make lint` runs RuboCop, which checks each gem against the oldest Ruby its gemspec supports, then Steep, which
 checks the code against the RBS signatures in `sig/`. The signatures ship in the gem. A finding is fixed, not
-ignored. `make format` applies RuboCop's safe corrections. RSpec fails a run on a Ruby warning, on an RSpec
-warning or deprecation, and on an example left focused, skipped or pending.
+ignored: no file under `lib` is excluded from RuboCop, and no line disables a cop. `make format` applies RuboCop's
+safe corrections. RSpec fails a run on a Ruby warning, on an RSpec warning or deprecation, and on an example left
+focused, skipped or pending.
+
+Three cops of the SDK are set apart in its `.rubocop.yml`:
+
+- `Style/Documentation` checks the public API's files only, `lib/configdirector.rb`, `lib/configdirector/*.rb` and
+  `lib/configdirector/testing/`, because the classes under `ConfigDirector::Internal` take no comments.
+- `Naming/FileName` accepts snake_case names and `configdirector-server-sdk.rb`, the file named after the gem that
+  `Bundler.require` loads.
+- `Lint/InheritException` is off for the whole SDK, because of `StoppableThread::Stopped`: it stops an SDK thread
+  and must not be caught by `rescue => e`, as the standard library's `Timeout::ExitException` must not.
+
+YARD comments document the public API only. The one exception is the YARD tag `@api private` on the
+`ConfigDirector::Internal` namespace, with the gem's `.yardopts`, which leaves that namespace out of the generated
+documentation, so rubydoc.info shows the public API alone.
+
+The SDK's lint also checks `spec/signature_fixture/`: code that reads values the way an application would, checked
+against the gem's signatures. Its type errors are deliberate: each says which type the checker sees for a read, such
+as `bool` for `get_value("new-checkout", false)`, and `steep_expectations.yml` lists them, so the check fails when
+a signature stops typing a read by its in-code default value. After a change to the fixture, or a Steep release that
+words a diagnostic differently, run `bundle exec steep check
+--save-expectations=spec/signature_fixture/steep_expectations.yml` in the SDK's directory and read the diff.
 
 `sig_missing_from_rbs/` in the SDK holds signatures of Ruby's own classes that the released `rbs` gem lacks: the
-block of `Thread.handle_interrupt`, which `rbs` has on its main branch and 4.2.0 does not, and
-`Net::HTTP#ignore_eof`, which [ruby/rbs#3290](https://github.com/ruby/rbs/pull/3290) adds. Steep reads that
+block of `Thread.handle_interrupt`, which `rbs` has on its main branch and 4.2.0 does not,
+`Net::HTTP#ignore_eof`, which [ruby/rbs#3290](https://github.com/ruby/rbs/pull/3290) adds, and `Data#initialize`,
+which the public value classes call with their keywords. Steep reads that
 directory and the gem does not ship it. Delete a file there once an `rbs` release has its signature.
 
 The SDK's specs that need an SDK server start `spec/support/scripted_sdk_server.rb`: a real HTTP server on a free

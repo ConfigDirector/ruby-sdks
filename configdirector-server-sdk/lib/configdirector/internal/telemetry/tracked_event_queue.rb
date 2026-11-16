@@ -13,8 +13,10 @@ module ConfigDirector
         end
 
         def add(admission)
-          warnings_not_logged_for_this_report = keep(admission) - @warnings_logged_for_this_report
-          @warnings_logged_for_this_report.concat(warnings_not_logged_for_this_report)
+          warnings_not_logged_for_this_report = keep(admission).reject do |warning|
+            @warnings_logged_for_this_report.include?(warning)
+          end
+          @warnings_logged_for_this_report.merge(warnings_not_logged_for_this_report)
 
           warnings_not_logged_for_this_report.map do |warning|
             "#{TrackedEventWarning.message_of(warning)} " \
@@ -24,7 +26,7 @@ module ConfigDirector
 
         def discard
           @entries = []
-          @warnings_logged_for_this_report = []
+          @warnings_logged_for_this_report = Set.new
         end
 
         private

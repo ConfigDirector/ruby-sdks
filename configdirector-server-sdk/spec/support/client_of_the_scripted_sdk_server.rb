@@ -20,9 +20,9 @@ RSpec.shared_context "with a client of the scripted SDK server" do
     threads_initializing_a_client.each { |thread| thread.join(10) }
   end
 
-  def client_connecting_to(url, mode: "streaming", timeout: 5, **client_options)
+  def client_connecting_to(url, mode: "streaming", timeout: 5, server_sdk_key: "server-sdk-key", **client_options)
     client = ConfigDirector.create_client(
-      "server-sdk-key",
+      server_sdk_key,
       connection: ConfigDirector::ConnectionOptions.new(mode: mode, timeout: timeout, url: url),
       logger: logger, **client_options
     )

@@ -8,7 +8,7 @@ module ConfigDirector
         def self.new: (type: String, data: String) -> instance
       end
 
-      class EventStreamLimitExceeded < StandardError
+      class EventStreamLimitExceeded < ConfigDirectorError
       end
 
       class EventStreamParser

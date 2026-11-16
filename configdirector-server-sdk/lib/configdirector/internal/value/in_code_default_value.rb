@@ -7,12 +7,12 @@ module ConfigDirector
 
       class InCodeDefaultValue
         def self.from(default_value)
-          kind = kind_of(default_value)
-          return new(value: default_value, kind: kind) unless kind.nil?
-
-          raise ConfigDirectorValidationError,
-                "Invalid in-code default value of class #{default_value.class}. The in-code default value " \
-                "for a config must be true, false, a String, an Integer, a Float, a Hash or an Array."
+          kind = kind_of(default_value) || raise(
+            ConfigDirectorValidationError,
+            "Invalid in-code default value of class #{default_value.class}. The in-code default value " \
+            "for a config must be true, false, a String, an Integer, a Float, a Hash or an Array."
+          )
+          new(value: default_value, kind: kind)
         end
 
         def self.kind_of(default_value)

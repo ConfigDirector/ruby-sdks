@@ -9,6 +9,8 @@ module ConfigDirector
 
         def self.of_the_wrapper: (untyped wrapper) -> SdkIdentity
 
+        private def self.new: (String sdk_name, String sdk_version) -> instance
+
         def initialize: (String sdk_name, String sdk_version) -> void
 
         def user_agent: () -> String
@@ -23,6 +25,8 @@ module ConfigDirector
         @name_of_the_version_constant_of_its_gem: String
 
         attr_reader sdk_name: String
+
+        private def self.new: (String sdk_name, String name_of_the_version_constant_of_its_gem) -> instance
 
         def initialize: (String sdk_name, String name_of_the_version_constant_of_its_gem) -> void
 

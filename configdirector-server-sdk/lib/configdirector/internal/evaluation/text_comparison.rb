@@ -4,9 +4,9 @@ module ConfigDirector
   module Internal
     module Evaluation
       module TextComparison
-        EQUALS_THE_FIRST_TARGET = ->(text, targets) { !targets.empty? && text == targets.first }
-        DIFFERS_FROM_THE_FIRST_TARGET = ->(text, targets) { !targets.empty? && text != targets.first }
-        NEVER_MATCHES = ->(_text, _targets) { false }
+        EQUALS_THE_FIRST_TARGET = ->(text, targets) { !targets.empty? && text == targets.first }.freeze
+        DIFFERS_FROM_THE_FIRST_TARGET = ->(text, targets) { !targets.empty? && text != targets.first }.freeze
+        NEVER_MATCHES = ->(_text, _targets) { false }.freeze
 
         OPERATORS = {
           "=" => EQUALS_THE_FIRST_TARGET,

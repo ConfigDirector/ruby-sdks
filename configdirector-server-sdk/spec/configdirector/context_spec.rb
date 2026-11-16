@@ -136,6 +136,49 @@ RSpec.describe ConfigDirector::Context do
 
     expect(visits[described_class.new(id: "user-123")]).to eq(1)
   end
+
+  it "builds a copy with the values given to with and leaves itself as it was" do
+    context = described_class.new(id: "user-123", traits: { "plan" => "pro" })
+
+    renamed = context.with(name: "Ada")
+
+    expect(renamed).to eq(described_class.new(id: "user-123", name: "Ada", traits: { "plan" => "pro" }))
+    expect(context.name).to be_nil
+  end
+
+  it "reads the values given to with as it reads the values it is built with" do
+    context = described_class.new(id: "user-123")
+
+    expect(context.with(id: 42, traits: { plan: :pro }))
+      .to eq(described_class.new(id: "42", traits: { "plan" => "pro" }))
+  end
+
+  it "raises for a value given to with that it would raise for when built" do
+    expect { described_class.new(id: "user-123").with(anonymous: "yes") }
+      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
+  it "gives its values as a Hash" do
+    context = described_class.new(id: "user-123", kind: "device", name: "Ada", traits: { plan: "pro" })
+
+    expect(context.to_h).to eq(
+      { id: "user-123", kind: "device", name: "Ada", traits: { "plan" => "pro" }, anonymous: false }
+    )
+  end
+
+  it "matches a pattern on its values" do
+    context = described_class.new(id: "device-7", kind: "device")
+
+    identifier = case context
+                 in { kind: "device", id: String => device_id } then device_id
+                 end
+
+    expect(identifier).to eq("device-7")
+  end
+
+  it "reads whether it is anonymous only through anonymous?" do
+    expect(described_class.new(anonymous: true)).not_to respond_to(:anonymous)
+  end
 end
 
 RSpec.describe "A context's traits and id in targeting rules" do

@@ -114,7 +114,7 @@ module ConfigDirector
           last_event_id: String
         ) -> StreamEnd
 
-        def self.without_a_stream: (
+        private def self.without_a_stream: (
           stream_end_kind kind,
           Integer status,
           String last_event_id,
@@ -190,17 +190,16 @@ module ConfigDirector
         ) -> void
 
         def keep_open: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(String event_data) -> void deliver_event_data
-        ) -> void
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String event_data) -> void } -> void
 
         private
 
-        def stream_until_it_ends: (^(String event_data) -> void deliver_event_data) -> StreamEnd
+        def stream_until_it_ends: () { (String event_data) -> void } -> StreamEnd
 
         def take_note_of_the_open_stream_of: (StreamConnection connection) -> void
 
-        def deliver: (String event_data, ^(String event_data) -> void deliver_event_data) -> void
+        def deliver: (String event_data) { (String event_data) -> void } -> void
 
         def stop_for_good: (
           Integer? status,
@@ -243,9 +242,8 @@ module ConfigDirector
         def transport_of_a_new_session: () -> StreamingTransport
 
         def open_a_stream: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(Connection::ServerSdkPayload payload) -> void deliver_payload
-        ) -> void
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (Connection::ServerSdkPayload payload) -> void } -> void
 
         def payload_or_nothing_in: (String event_data) -> Connection::ServerSdkPayload?
       end

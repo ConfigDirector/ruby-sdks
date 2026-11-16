@@ -14,15 +14,13 @@ module ConfigDirector
         end
 
         def http_session
-          http_session = Connection::HttpSession.to(@poll_uri)
-          http_session.ignore_eof = false
-          http_session
+          Connection::HttpSession.to(@poll_uri).tap { |http_session| http_session.ignore_eof = false }
         end
 
         def json_post_of_a_poll(session_id:, last_update_timestamp:)
           Connection::JsonPostRequest.to(
             @poll_uri, @sdk_identity,
-            **{
+            {
               serverSdkKey: @server_sdk_key, sessionId: session_id, metaContext: @meta_context,
               lastUpdateTimestamp: last_update_timestamp
             }.compact
@@ -30,7 +28,7 @@ module ConfigDirector
         end
 
         def refusal_detail_in(answer_body)
-          RefusalDetail.in(answer_body, @server_sdk_key)
+          RefusalDetail.of(answer_body, server_sdk_key_to_hide: @server_sdk_key)
         end
       end
     end

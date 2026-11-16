@@ -4,7 +4,7 @@ module ConfigDirector
   module Internal
     module Client
       class ConfigReader
-        def initialize(serving_state, event_handlers, telemetry, log)
+        def initialize(serving_state:, event_handlers:, telemetry:, log:)
           @serving_state = serving_state
           @event_handlers = event_handlers
           @telemetry = telemetry
@@ -20,10 +20,14 @@ module ConfigDirector
           )
         end
 
+        def evaluation_of(config_key, default_value, context)
+          read(config_read_of(config_key, default_value, context))
+        end
+
         def read(config_read)
           evaluated_read = @serving_state.served_configs&.evaluated_read(config_read) ||
                            config_read.evaluated_to_the_in_code_default_value("client-not-ready", nil)
-          @telemetry.record(evaluated_read)
+          @telemetry.record_evaluation(evaluated_read)
           evaluation = evaluated_read.evaluation
           @log.debug { "Evaluated #{evaluation.key.inspect} to #{evaluation.value.inspect} (#{evaluation.reason})" }
           @event_handlers.deliver_config_evaluated(evaluation)

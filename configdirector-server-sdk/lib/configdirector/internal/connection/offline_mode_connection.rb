@@ -32,7 +32,7 @@ module ConfigDirector
         end
 
         def self.serving_the_payload(payload)
-          new(-> { payload })
+          new { payload }
         end
 
         def self.reading_the_file(file)
@@ -41,7 +41,7 @@ module ConfigDirector
                   "Invalid 'file' option of class #{file.class}. It must be a String or a Pathname."
           end
 
-          new(-> { payload_serving_the_values_in_the_file(file) })
+          new { payload_serving_the_values_in_the_file(file) }
         end
 
         def self.payload_serving_the_given_values(values)
@@ -67,7 +67,7 @@ module ConfigDirector
                              :payload_serving_the_given_values, :payload_serving_the_values_in_the_file,
                              :payload_serving
 
-        def initialize(payload_of_the_offline_values)
+        def initialize(&payload_of_the_offline_values)
           @payload_of_the_offline_values = payload_of_the_offline_values
           @delivering_the_offline_values = false
         end

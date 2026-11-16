@@ -1,4 +1,4 @@
-.PHONY: install hooks verify-ruby verify-lock format lint test test-lowest samples-local build audit check-floor \
+.PHONY: install hooks verify-ruby verify-lock format lint _lint test test-lowest samples-local build audit check-floor \
 	_check-floor check check-all clean
 
 # Every gem this repository publishes, each in a directory named after it. Narrow a target to one of them with,
@@ -17,6 +17,11 @@ PROJECTS := $(GEMS) $(SAMPLES)
 # The official image of each gem's oldest supported Ruby line. `check-floor` runs the gem's lint and suite in it.
 FLOOR_IMAGE_$(SDK) := ruby:3.3
 FLOOR_IMAGE_$(PROVIDER) := ruby:3.4
+
+# The options `lint` gives Steep in each gem. The SDK's Steepfile also checks its signature fixture, code that reads
+# values the way an application would, whose type errors are deliberate and listed in its expectations file.
+STEEP_OPTIONS_$(SDK) := --with-expectations=spec/signature_fixture/steep_expectations.yml
+STEEP_OPTIONS_$(PROVIDER) :=
 
 install:
 	@for project in $(PROJECTS); do \
@@ -48,13 +53,16 @@ format: install
 
 lint: install
 	@for gem in $(GEMS); do \
-		printf '\n\033[1m==> lint %s\033[0m\n' "$$gem"; \
-		(cd "$$gem" && bundle exec rubocop && bundle exec steep check) || exit 1; \
+		$(MAKE) --no-print-directory _lint GEM="$$gem" || exit 1; \
 	done
 	@for sample in $(SAMPLES); do \
 		printf '\n\033[1m==> lint %s\033[0m\n' "$$sample"; \
 		(cd "$$sample" && bundle exec rubocop) || exit 1; \
 	done
+
+_lint:
+	@printf '\n\033[1m==> lint %s\033[0m\n' "$(GEM)"
+	@cd "$(GEM)" && bundle exec rubocop && bundle exec steep check $(STEEP_OPTIONS_$(GEM))
 
 test: install
 	@for gem in $(GEMS); do \

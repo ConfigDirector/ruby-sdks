@@ -5,36 +5,39 @@ module ConfigDirector
     module Telemetry
       AdmittedTrackedEvent = Data.define(:entry, :context, :warnings)
       DroppedTrackedEvent = Data.define(:warnings)
-      ReportedPart = Data.define(:reported, :warnings)
-
-      class ReportedPart
-        def self.not_given
-          new(reported: nil, warnings: [])
-        end
-
-        def self.of(reported)
-          new(reported: reported, warnings: [])
-        end
-
-        def self.left_out_with(warning)
-          new(reported: nil, warnings: [warning])
-        end
-      end
 
       module TrackedEventAdmission
         NAME_MAXIMUM_CHARACTERS = 150
+
+        ReportedPart = Data.define(:reported, :warnings)
+
+        class ReportedPart
+          def self.not_given
+            new(reported: nil, warnings: [])
+          end
+
+          def self.of(reported)
+            new(reported: reported, warnings: [])
+          end
+
+          def self.left_out_with(warning)
+            new(reported: nil, warnings: [warning])
+          end
+        end
+
+        private_constant :ReportedPart
 
         def self.of(name:, context:, value:, details:, happened_at:)
           reported_name = reported_name_of(name)
           return DroppedTrackedEvent.new(warnings: [:name_outside_the_character_limit]) if reported_name.nil?
 
-          reported_value = reported_value_of(value)
-          reported_details = reported_details_of(details)
+          value_part = reported_value_of(value)
+          details_part = reported_details_of(details)
           entry = TrackedEventEntry.of(
-            name: reported_name, context: context, value: reported_value.reported, details: reported_details.reported,
+            name: reported_name, context: context, value: value_part.reported, details: details_part.reported,
             happened_at: happened_at
           )
-          warnings = reported_value.warnings + reported_details.warnings
+          warnings = value_part.warnings + details_part.warnings
           AdmittedTrackedEvent.new(entry: entry, context: context, warnings: warnings)
         end
 

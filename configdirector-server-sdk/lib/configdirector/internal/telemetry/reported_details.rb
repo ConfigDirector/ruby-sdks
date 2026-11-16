@@ -34,9 +34,9 @@ module ConfigDirector
 
         def form_of(value, level)
           count_one_more_value
-          return ReportedTime.of(value) if value.is_a?(Time)
 
           case value
+          when Time then ReportedTime.of(value)
           when String, Integer, Float, true, false, nil then value
           when Symbol then value.name
           when Array, Hash then container_form_of(value, level)

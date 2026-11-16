@@ -32,13 +32,18 @@ module ConfigDirector
       def fail_initialization: () -> nil
     end
 
-    class TrackedEvent
-      include Internal::ComparedByValue
-
+    class TrackedEvent < Data
       attr_reader name: String
       attr_reader context: Context?
       attr_reader value: (Integer | Float)?
       attr_reader details: Hash[String, untyped]?
+
+      def self.new: (
+        name: String,
+        ?context: Context?,
+        ?value: (Integer | Float)?,
+        ?details: Hash[String, untyped]?
+      ) -> instance
 
       def initialize: (
         name: String,
@@ -46,6 +51,20 @@ module ConfigDirector
         ?value: (Integer | Float)?,
         ?details: Hash[String, untyped]?
       ) -> void
+
+      def with: (
+        ?name: String,
+        ?context: Context?,
+        ?value: (Integer | Float)?,
+        ?details: Hash[String, untyped]?
+      ) -> instance
+
+      def to_h: () -> {
+        name: String,
+        context: Context?,
+        value: (Integer | Float)?,
+        details: Hash[String, untyped]?
+      }
     end
   end
 end

@@ -3,7 +3,7 @@
 module ConfigDirector
   module Internal
     module ServerSentEvents
-      class EventStreamLimitExceeded < StandardError; end
+      class EventStreamLimitExceeded < ConfigDirectorError; end
     end
   end
 end

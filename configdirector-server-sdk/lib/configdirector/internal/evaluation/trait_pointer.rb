@@ -12,14 +12,12 @@ module ConfigDirector
         def self.value_at(pointer, traits)
           return nil unless pointer.start_with?("/")
 
-          current = traits
-          pointer.split("/", -1).drop(1).each do |encoded_token|
-            return nil if encoded_token.match?(INVALID_ESCAPE)
+          encoded_tokens = pointer.split("/", -1).drop(1)
+          return nil if encoded_tokens.any? { |encoded_token| encoded_token.match?(INVALID_ESCAPE) }
 
-            current = member_of(current, encoded_token.gsub(ESCAPE, DECODED_ESCAPES))
-            return nil if current.nil?
+          encoded_tokens.reduce(traits) do |container, encoded_token|
+            member_of(container, encoded_token.gsub(ESCAPE, DECODED_ESCAPES))
           end
-          current
         end
 
         def self.member_of(container, token)

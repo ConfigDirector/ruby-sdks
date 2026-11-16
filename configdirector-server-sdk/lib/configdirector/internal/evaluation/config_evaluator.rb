@@ -15,26 +15,14 @@ module ConfigDirector
             end
           end
 
-          default_targeting_rule_value(targeting_rules, a_rollout_was_skipped)
+          targeting_rules.default_targeting_rule_value(a_rollout_was_skipped: a_rollout_was_skipped)
         end
 
         def self.in_evaluation_order(rules)
-          rules.each_with_index
-               .sort_by { |rule, position| [rule.order.nil? ? 1 : 0, rule.order || 0, position] }
-               .map(&:first)
+          rules.sort_by.with_index { |rule, position| [rule.order || Float::INFINITY, position] }
         end
 
-        def self.default_targeting_rule_value(targeting_rules, a_rollout_was_skipped)
-          ServedValue.new(
-            value: targeting_rules.default_value,
-            value_id: targeting_rules.default_value_id,
-            variation_id: targeting_rules.default_variation_id,
-            rollout_share: nil,
-            served_by: a_rollout_was_skipped ? :default_targeting_rule_after_skipped_rollout : :default_targeting_rule
-          )
-        end
-
-        private_class_method :in_evaluation_order, :default_targeting_rule_value
+        private_class_method :in_evaluation_order
       end
     end
   end

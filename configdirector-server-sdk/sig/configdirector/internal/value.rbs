@@ -11,10 +11,10 @@ module ConfigDirector
 
         def self.from: (untyped default_value) -> InCodeDefaultValue
 
-        def self.kind_of: (untyped default_value) -> in_code_default_value_kind?
+        private def self.kind_of: (untyped default_value) -> in_code_default_value_kind?
       end
 
-      class UnservableValue < StandardError
+      class UnservableValue < ConfigDirectorError
       end
 
       class EncodedNativeValue < Data
@@ -25,11 +25,11 @@ module ConfigDirector
 
         def self.of: (untyped value, String config_key) -> EncodedNativeValue
 
-        def self.encoded_float: (Float value, String config_key) -> EncodedNativeValue
+        private def self.encoded_float: (Float value, String config_key) -> EncodedNativeValue
 
-        def self.utf8_text_of: (String value, String config_key) -> String
+        private def self.utf8_text_of: (String value, String config_key) -> String
 
-        def self.unservable_because_of_the_class_of: (untyped value, String config_key) -> UnservableValue
+        private def self.unservable_because_of_the_class_of: (untyped value, String config_key) -> UnservableValue
       end
 
       module PlainDecimalText
@@ -37,7 +37,7 @@ module ConfigDirector
 
         def self.of: (Float finite_float) -> String
 
-        def self.parts_around_the_point: (String digits, Integer digits_before_the_point) -> [String, String]
+        private def self.parts_around_the_point: (String digits, Integer digits_before_the_point) -> [String, String]
       end
 
       module Utf8Text
@@ -49,7 +49,7 @@ module ConfigDirector
 
         def self.description_of_a_key_given_twice_in: (Array[untyped] given_keys, Array[String] key_texts) -> String?
 
-        def self.how_the_two_keys_differ: (untyped first_given, untyped second_given) -> String
+        private def self.how_the_two_keys_differ: (untyped first_given, untyped second_given) -> String
       end
 
       module NativeValues
@@ -59,7 +59,7 @@ module ConfigDirector
 
         def self.name_of_a_config_key: (untyped given_key) -> String
 
-        def self.config_key_named_by: (untyped given_key) -> String
+        private def self.config_key_named_by: (untyped given_key) -> String
       end
 
       class JsonPosition < Data
@@ -84,22 +84,22 @@ module ConfigDirector
 
         def self.json_text_of: (Hash[untyped, untyped] | Array[untyped] json_value, String config_key) -> String
 
-        def self.contents_at: (JsonPosition position, untyped contents) -> untyped
+        private def self.contents_at: (JsonPosition position, untyped contents) -> untyped
 
-        def self.utf8_text_at: (JsonPosition position, String text) -> String
+        private def self.utf8_text_at: (JsonPosition position, String text) -> String
 
-        def self.finite_float_at: (JsonPosition position, Float float) -> Float
+        private def self.finite_float_at: (JsonPosition position, Float float) -> Float
 
-        def self.container_contents_at: (
+        private def self.container_contents_at: (
           JsonPosition position,
           Hash[untyped, untyped] | Array[untyped] container
         ) -> (Hash[String, untyped] | Array[untyped])
 
-        def self.members_at: (JsonPosition position, Hash[untyped, untyped] json_object) -> Hash[String, untyped]
+        private def self.members_at: (JsonPosition position, Hash[untyped, untyped] json_object) -> Hash[String, untyped]
 
-        def self.key_text_at: (JsonPosition position, untyped given_key) -> String
+        private def self.key_text_at: (JsonPosition position, untyped given_key) -> String
 
-        def self.unservable_contents_at: (JsonPosition position, String problem) -> UnservableValue
+        private def self.unservable_contents_at: (JsonPosition position, String problem) -> UnservableValue
       end
 
       class TypedValue < Data
@@ -119,45 +119,15 @@ module ConfigDirector
           String config_type
         ) -> (TypedValue | String)
 
-        def self.boolean_in: (String served_text) -> (TypedValue | String)
+        private def self.boolean_in: (String served_text) -> (TypedValue | String)
 
-        def self.string_of: (String served_text, String config_type) -> (TypedValue | String)
+        private def self.string_of: (String served_text, String config_type) -> (TypedValue | String)
 
-        def self.whole_number_in: (String served_text) -> (TypedValue | String)
+        private def self.whole_number_in: (String served_text) -> (TypedValue | String)
 
-        def self.finite_number_in: (String served_text) -> (TypedValue | String)
+        private def self.finite_number_in: (String served_text) -> (TypedValue | String)
 
-        def self.json_in: (String served_text, Class json_class) -> (TypedValue | String)
-      end
-    end
-
-    module Logging
-      module DefaultLogger
-        LINE_PREFIX: String
-        LINE_FORMAT: ^(String severity, Time time, untyped program_name, untyped message) -> String
-        LOGGER_LEVELS: Range[Integer]
-
-        def self.writing_from: (untyped log_level) -> Logger
-
-        def self.invalid: (untyped log_level) -> ConfigDirectorValidationError
-      end
-
-      class ClientLog
-        @logger: _Logger
-        @line_prefix: String
-        @writes_debug_lines: _LogLevelCheck
-
-        def initialize: (_Logger & Object logger, ?component: String) -> void
-
-        def debug: () { () -> String } -> void
-
-        def info: (String line) -> void
-
-        def warn: (String line) -> void
-
-        def error: (String line) -> void
-
-        def ignoring_errors_from: (String source) { () -> untyped } -> void
+        private def self.json_in: (String served_text, Class json_class) -> (TypedValue | String)
       end
     end
   end

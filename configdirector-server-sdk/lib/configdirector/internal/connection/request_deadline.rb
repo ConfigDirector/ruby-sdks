@@ -6,8 +6,6 @@ module ConfigDirector
   module Internal
     module Connection
       class RequestDeadline
-        attr_reader :seconds_the_request_may_take
-
         def self.on_the_clock_of_the_process(seconds_the_request_may_take)
           new(
             seconds_the_request_may_take: seconds_the_request_may_take,

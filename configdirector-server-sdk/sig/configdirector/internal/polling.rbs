@@ -23,9 +23,9 @@ module ConfigDirector
       module RefusalDetail
         MAXIMUM_BYTES: Integer
 
-        def self.in: (String answer_body, String server_sdk_key) -> String
+        def self.of: (String answer_body, server_sdk_key_to_hide: String) -> String
 
-        def self.written_forms_of: (String server_sdk_key) -> Array[String]
+        private def self.written_forms_of: (String server_sdk_key) -> Array[String]
       end
 
       type poll_answer_kind = :payload
@@ -74,7 +74,7 @@ module ConfigDirector
 
         def self.unreadable: (String cause) -> PollAnswer
 
-        def self.failed: (
+        private def self.failed: (
           poll_answer_kind kind,
           String failure_message,
           ?status: Integer?,
@@ -167,21 +167,18 @@ module ConfigDirector
         ) -> void
 
         def poll: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(String payload_text) -> void deliver_payload_text
-        ) -> Symbol
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> Symbol
 
         def session_of_a_forked_process: () -> PollingSession
 
         def poll_at_once_and_on_every_interval: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(String payload_text) -> void deliver_payload_text
-        ) -> void
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> void
 
         def poll_on_every_interval: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(String payload_text) -> void deliver_payload_text
-        ) -> void
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> void
 
         private
 
@@ -189,7 +186,7 @@ module ConfigDirector
 
         def answer_before: (Connection::RequestDeadline deadline) -> PollAnswer
 
-        def deliver: (PollAnswer answer, ^(String payload_text) -> void deliver_payload_text) -> Symbol
+        def deliver: (PollAnswer answer) { (String payload_text) -> void } -> Symbol
 
         def log_the_failure_of: (PollAnswer answer) -> void
 
@@ -222,9 +219,8 @@ module ConfigDirector
         private
 
         def poll_on_every_interval_unless_closed: (
-          ^(ConfigDirectorConnectionError unrecoverable_error) -> void report_unrecoverable_error,
-          ^(String payload_text) -> void deliver_payload_text
-        ) -> void
+          report_unrecoverable_error: ^(ConfigDirectorConnectionError unrecoverable_error) -> void
+        ) { (String payload_text) -> void } -> void
 
         def start_the_polling_thread_unless_closed: () { () -> void } -> void
       end

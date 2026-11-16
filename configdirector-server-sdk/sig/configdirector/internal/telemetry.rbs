@@ -12,18 +12,23 @@ module ConfigDirector
 
       type tracked_event_admission = AdmittedTrackedEvent | DroppedTrackedEvent
 
+      type tracked_event_warning = :name_outside_the_character_limit
+                                 | :value_not_a_finite_number
+                                 | :details_not_reportable
+                                 | :batch_already_full
+
       interface _ClientTelemetry
-        def record: (Client::EvaluatedRead evaluated_read) -> nil
+        def record_evaluation: (Client::EvaluatedRead evaluated_read) -> void
 
         def record_tracked_event: (tracked_event_admission admission) -> Array[String]
 
         def count_invalid_context: (String kind_sample) -> invalid_context_recording
 
-        def start_reporting: () -> nil
+        def start_reporting: () -> void
 
-        def restart_in_a_forked_process: (Symbol forked_through) -> nil
+        def restart_in_a_forked_process: (Symbol forked_through) -> void
 
-        def close: () -> nil
+        def close: () -> void
       end
 
       interface _TelemetryOfAMode
@@ -62,26 +67,26 @@ module ConfigDirector
 
         def self.number_javascript_holds?: (Integer | Float number) -> bool
 
-        def self.text_inside: (untyped value, Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it) -> String
+        private def self.text_inside: (untyped value, Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it) -> String
 
-        def self.number_text_of: (Integer | Float number) -> String
+        private def self.number_text_of: (Integer | Float number) -> String
 
-        def self.container_text_inside: (
+        private def self.container_text_inside: (
           Array[untyped] | Hash[untyped, untyped] container,
           Array[Array[untyped] | Hash[untyped, untyped]] containers_around_it
         ) -> String
 
-        def self.element_texts_of: (
+        private def self.element_texts_of: (
           Array[untyped] array,
           Array[Array[untyped] | Hash[untyped, untyped]] containers_around_its_contents
         ) -> Array[String]
 
-        def self.member_texts_of: (
+        private def self.member_texts_of: (
           Hash[untyped, untyped] hash,
           Array[Array[untyped] | Hash[untyped, untyped]] containers_around_its_contents
         ) -> Array[String]
 
-        def self.string_text_of: (String text) -> String
+        private def self.string_text_of: (String text) -> String
       end
 
       module ReportedValue
@@ -96,7 +101,7 @@ module ConfigDirector
 
         def self.of: (config_value value, String? config_type) -> Hash[Symbol, String]
 
-        def self.json_value?: (config_value value, String? config_type) -> bool
+        private def self.json_value?: (config_value value, String? config_type) -> bool
       end
 
       module ReportedTime
@@ -183,7 +188,7 @@ module ConfigDirector
 
         def count_beyond_the_sample_limit: () -> (:first_beyond_sample_limit | :beyond_sample_limit)
 
-        def counts_by_wire_event_taken_for_a_report: () -> Hash[wire_event, Integer]
+        def counts_by_wire_event: () -> Hash[wire_event, Integer]
 
         def wire_event_of: (String? kind_sample) -> wire_event
       end
@@ -196,6 +201,8 @@ module ConfigDirector
         @values_left: Integer
 
         def self.json_of: (untyped details) -> WrittenJson?
+
+        private def self.new: () -> instance
 
         def initialize: () -> void
 
@@ -246,32 +253,32 @@ module ConfigDirector
       class AdmittedTrackedEvent < Data
         attr_reader entry: TrackedEventEntry
         attr_reader context: Context?
-        attr_reader warnings: Array[Symbol]
+        attr_reader warnings: Array[tracked_event_warning]
 
-        def self.new: (entry: TrackedEventEntry, context: Context?, warnings: Array[Symbol]) -> instance
+        def self.new: (entry: TrackedEventEntry, context: Context?, warnings: Array[tracked_event_warning]) -> instance
       end
 
       class DroppedTrackedEvent < Data
-        attr_reader warnings: Array[Symbol]
+        attr_reader warnings: Array[tracked_event_warning]
 
-        def self.new: (warnings: Array[Symbol]) -> instance
-      end
-
-      class ReportedPart[T] < Data
-        attr_reader reported: T?
-        attr_reader warnings: Array[Symbol]
-
-        def self.new: [T] (reported: T?, warnings: Array[Symbol]) -> ReportedPart[T]
-
-        def self.not_given: () -> ReportedPart[untyped]
-
-        def self.of: [T] (T reported) -> ReportedPart[T]
-
-        def self.left_out_with: (Symbol warning) -> ReportedPart[untyped]
+        def self.new: (warnings: Array[tracked_event_warning]) -> instance
       end
 
       module TrackedEventAdmission
         NAME_MAXIMUM_CHARACTERS: Integer
+
+        class ReportedPart[T] < Data
+          attr_reader reported: T?
+          attr_reader warnings: Array[tracked_event_warning]
+
+          def self.new: [T] (reported: T?, warnings: Array[tracked_event_warning]) -> ReportedPart[T]
+
+          def self.not_given: () -> ReportedPart[untyped]
+
+          def self.of: [T] (T reported) -> ReportedPart[T]
+
+          def self.left_out_with: (tracked_event_warning warning) -> ReportedPart[untyped]
+        end
 
         def self.of: (
           name: untyped,
@@ -281,23 +288,23 @@ module ConfigDirector
           happened_at: Time
         ) -> tracked_event_admission
 
-        def self.reported_name_of: (untyped name) -> String?
+        private def self.reported_name_of: (untyped name) -> String?
 
-        def self.reported_value_of: (untyped value) -> ReportedPart[Integer | Float]
+        private def self.reported_value_of: (untyped value) -> ReportedPart[Integer | Float]
 
-        def self.reported_details_of: (untyped details) -> ReportedPart[WrittenJson]
+        private def self.reported_details_of: (untyped details) -> ReportedPart[WrittenJson]
       end
 
       module TrackedEventWarning
         MESSAGE_BY_WARNING: Hash[Symbol, String]
 
-        def self.message_of: (Symbol warning) -> String
+        def self.message_of: (tracked_event_warning warning) -> String
       end
 
       class TrackedEventQueue
         EVENTS_PER_REPORT: Integer
 
-        @warnings_logged_for_this_report: Array[Symbol]
+        @warnings_logged_for_this_report: Set[tracked_event_warning]
 
         attr_reader entries: Array[TrackedEventEntry]
 
@@ -309,7 +316,7 @@ module ConfigDirector
 
         private
 
-        def keep: (tracked_event_admission admission) -> Array[Symbol]
+        def keep: (tracked_event_admission admission) -> Array[tracked_event_warning]
       end
 
       class TelemetryReport < Data
@@ -361,7 +368,7 @@ module ConfigDirector
 
         def initialize: (Integer event_queue_limit) -> void
 
-        def add: (Client::EvaluatedRead evaluated_read) -> void
+        def add_evaluation: (Client::EvaluatedRead evaluated_read) -> void
 
         def add_tracked_event: (tracked_event_admission admission) -> Array[String]
 
@@ -446,7 +453,7 @@ module ConfigDirector
 
         def initialize: (TelemetryEndpoint endpoint, _Logger & Object logger) -> void
 
-        def what_follows_a_report_of: (TelemetryReport report) -> Symbol
+        def what_follows_delivering: (TelemetryReport report) -> Symbol
       end
 
       class ReportSchedule
@@ -458,11 +465,11 @@ module ConfigDirector
 
         def initialize: (ReportTiming timing) -> void
 
-        def start: () { () -> void } -> nil
+        def start: () { () -> void } -> void
 
-        def stop: () -> nil
+        def stop: () -> void
 
-        def wait_for_a_report_being_sent: () -> nil
+        def wait_for_a_report_being_sent: () -> void
 
         private
 

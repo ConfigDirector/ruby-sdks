@@ -4,9 +4,9 @@ module ConfigDirector
   module Internal
     module Evaluation
       module SemverComparison
-        COERCIBLE_VERSION = /(?:\A|[^0-9])([0-9]{1,16})(?:\.([0-9]{1,16}))?(?:\.([0-9]{1,16}))?(?:\z|[^0-9])/
+        VERSION_IN_TEXT = /(?:\A|[^0-9])([0-9]{1,16})(?:\.([0-9]{1,16}))?(?:\.([0-9]{1,16}))?(?:\z|[^0-9])/
 
-        NEVER_MATCHES = ->(_version, _targets) { false }
+        NEVER_MATCHES = ->(_version, _targets) { false }.freeze
 
         OPERATORS = {
           "=" => ->(version, targets) { [0].include?(ordering(version, targets.first)) },
@@ -19,11 +19,11 @@ module ConfigDirector
         }.freeze
 
         def self.matches?(text, operator, targets)
-          OPERATORS.fetch(operator, NEVER_MATCHES).call(coerce(text), targets)
+          OPERATORS.fetch(operator, NEVER_MATCHES).call(version_in(text), targets)
         end
 
-        def self.coerce(text)
-          match = COERCIBLE_VERSION.match(text)
+        def self.version_in(text)
+          match = VERSION_IN_TEXT.match(text)
           return nil if match.nil?
 
           major, minor, patch = match.captures
@@ -31,7 +31,7 @@ module ConfigDirector
         end
 
         def self.ordering(version, target_text)
-          target = target_text.nil? ? nil : coerce(target_text)
+          target = target_text.nil? ? nil : version_in(target_text)
           return nil if version.nil? || target.nil?
 
           version <=> target
@@ -41,8 +41,8 @@ module ConfigDirector
           targets.any? { |target| ordering(version, target)&.zero? }
         end
 
-        private_constant :COERCIBLE_VERSION, :NEVER_MATCHES, :OPERATORS
-        private_class_method :coerce, :ordering, :equals_any?
+        private_constant :VERSION_IN_TEXT, :NEVER_MATCHES, :OPERATORS
+        private_class_method :version_in, :ordering, :equals_any?
       end
     end
   end

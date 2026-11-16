@@ -44,24 +44,35 @@ module ConfigDirector
     def initialize: (?String? message, ?status: Integer?) -> void
   end
 
-  class Metadata
-    include Internal::ComparedByValue
-
+  class Metadata < Data
     attr_reader app_name: String?
     attr_reader app_version: String?
 
+    def self.new: (?app_name: String?, ?app_version: String?) -> instance
+
     def initialize: (?app_name: String?, ?app_version: String?) -> void
+
+    def with: (?app_name: String?, ?app_version: String?) -> instance
+
+    def to_h: () -> { app_name: String?, app_version: String? }
   end
 
-  class ConnectionOptions
-    include Internal::ComparedByValue
-
+  class ConnectionOptions < Data
     attr_reader mode: String
     attr_reader polling_interval: seconds
     attr_reader timeout: seconds
     attr_reader url: String
     attr_reader file: (String | Pathname)?
     attr_reader values: Hash[String | Symbol, untyped]?
+
+    def self.new: (
+      ?mode: String,
+      ?polling_interval: seconds,
+      ?timeout: seconds,
+      ?url: String,
+      ?file: (String | Pathname)?,
+      ?values: Hash[String | Symbol, untyped]?
+    ) -> instance
 
     def initialize: (
       ?mode: String,
@@ -71,15 +82,37 @@ module ConfigDirector
       ?file: (String | Pathname)?,
       ?values: Hash[String | Symbol, untyped]?
     ) -> void
+
+    def with: (
+      ?mode: String,
+      ?polling_interval: seconds,
+      ?timeout: seconds,
+      ?url: String,
+      ?file: (String | Pathname)?,
+      ?values: Hash[String | Symbol, untyped]?
+    ) -> instance
+
+    def to_h: () -> {
+      mode: String,
+      polling_interval: seconds,
+      timeout: seconds,
+      url: String,
+      file: (String | Pathname)?,
+      values: Hash[String | Symbol, untyped]?
+    }
   end
 
-  class TelemetryOptions
-    include Internal::ComparedByValue
-
+  class TelemetryOptions < Data
     attr_reader event_queue_limit: Integer
     attr_reader flush_interval: seconds
 
+    def self.new: (?event_queue_limit: Integer, ?flush_interval: seconds) -> instance
+
     def initialize: (?event_queue_limit: Integer, ?flush_interval: seconds) -> void
+
+    def with: (?event_queue_limit: Integer, ?flush_interval: seconds) -> instance
+
+    def to_h: () -> { event_queue_limit: Integer, flush_interval: seconds }
   end
 
   interface _EventHandler
@@ -88,13 +121,18 @@ module ConfigDirector
 
   type hook = _EventHandler | Array[_EventHandler]
 
-  class ClientHooks
-    include Internal::ComparedByValue
-
+  class ClientHooks < Data
     attr_reader client_ready: hook?
     attr_reader configs_updated: hook?
     attr_reader config_evaluated: hook?
     attr_reader connection_error: hook?
+
+    def self.new: (
+      ?client_ready: hook?,
+      ?configs_updated: hook?,
+      ?config_evaluated: hook?,
+      ?connection_error: hook?
+    ) -> instance
 
     def initialize: (
       ?client_ready: hook?,
@@ -102,31 +140,53 @@ module ConfigDirector
       ?config_evaluated: hook?,
       ?connection_error: hook?
     ) -> void
+
+    def with: (
+      ?client_ready: hook?,
+      ?configs_updated: hook?,
+      ?config_evaluated: hook?,
+      ?connection_error: hook?
+    ) -> instance
+
+    def to_h: () -> {
+      client_ready: hook?,
+      configs_updated: hook?,
+      config_evaluated: hook?,
+      connection_error: hook?
+    }
   end
 
-  class ConfigsUpdatedEvent
-    include Internal::ComparedByValue
-
+  class ConfigsUpdatedEvent < Data
     attr_reader keys: Array[String]
     attr_reader removed_keys: Array[String]
 
+    def self.new: (keys: Array[String], removed_keys: Array[String]) -> instance
+
     def initialize: (keys: Array[String], removed_keys: Array[String]) -> void
+
+    def with: (?keys: Array[String], ?removed_keys: Array[String]) -> instance
+
+    def to_h: () -> { keys: Array[String], removed_keys: Array[String] }
   end
 
-  class ConfigEvaluatedEvent
-    include Internal::ComparedByValue
+  class ConfigEvaluatedEvent < Data
+    attr_reader evaluation: ConfigEvaluation[config_value]
 
-    attr_reader evaluation: ConfigEvaluation
+    def self.new: (evaluation: ConfigEvaluation[config_value]) -> instance
 
-    def initialize: (evaluation: ConfigEvaluation) -> void
+    def with: (?evaluation: ConfigEvaluation[config_value]) -> instance
+
+    def to_h: () -> { evaluation: ConfigEvaluation[config_value] }
   end
 
-  class ConnectionErrorEvent
-    include Internal::ComparedByValue
-
+  class ConnectionErrorEvent < Data
     attr_reader error: ConfigDirectorConnectionError
 
-    def initialize: (error: ConfigDirectorConnectionError) -> void
+    def self.new: (error: ConfigDirectorConnectionError) -> instance
+
+    def with: (?error: ConfigDirectorConnectionError) -> instance
+
+    def to_h: () -> { error: ConfigDirectorConnectionError }
   end
 
   class Subscription
@@ -140,15 +200,19 @@ module ConfigDirector
     def closed?: () -> bool
   end
 
-  class Context
-    include Internal::ComparedByValue
-
+  class Context < Data
     attr_reader id: String?
     attr_reader kind: String?
     attr_reader name: String?
     attr_reader traits: Hash[String, untyped]?
 
-    @anonymous: bool
+    def self.new: (
+      ?id: (String | Integer)?,
+      ?kind: String?,
+      ?name: String?,
+      ?traits: Hash[untyped, untyped]?,
+      ?anonymous: bool
+    ) -> instance
 
     def initialize: (
       ?id: (String | Integer)?,
@@ -158,21 +222,43 @@ module ConfigDirector
       ?anonymous: bool
     ) -> void
 
+    def with: (
+      ?id: (String | Integer)?,
+      ?kind: String?,
+      ?name: String?,
+      ?traits: Hash[untyped, untyped]?,
+      ?anonymous: bool
+    ) -> instance
+
+    def to_h: () -> {
+      id: String?,
+      kind: String?,
+      name: String?,
+      traits: Hash[String, untyped]?,
+      anonymous: bool
+    }
+
     def anonymous?: () -> bool
+
+    private
+
+    attr_reader anonymous: bool
   end
 
-  class Variation
-    include Internal::ComparedByValue
-
+  class Variation < Data
     attr_reader id: String
     attr_reader name: String?
 
+    def self.new: (id: String, ?name: String?) -> instance
+
     def initialize: (id: String, ?name: String?) -> void
+
+    def with: (?id: String, ?name: String?) -> instance
+
+    def to_h: () -> { id: String, name: String? }
   end
 
-  class ConfigState
-    include Internal::ComparedByValue
-
+  class ConfigState < Data
     attr_reader id: String
     attr_reader key: String
     attr_reader type: String
@@ -181,6 +267,17 @@ module ConfigDirector
     attr_reader variation: Variation?
     attr_reader rule_id: String?
     attr_reader share_id: String?
+
+    def self.new: (
+      id: String,
+      key: String,
+      type: String,
+      value: String?,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?rule_id: String?,
+      ?share_id: String?
+    ) -> instance
 
     def initialize: (
       id: String,
@@ -192,23 +289,51 @@ module ConfigDirector
       ?rule_id: String?,
       ?share_id: String?
     ) -> void
+
+    def with: (
+      ?id: String,
+      ?key: String,
+      ?type: String,
+      ?value: String?,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?rule_id: String?,
+      ?share_id: String?
+    ) -> instance
+
+    def to_h: () -> {
+      id: String,
+      key: String,
+      type: String,
+      value: String?,
+      value_id: String?,
+      variation: Variation?,
+      rule_id: String?,
+      share_id: String?
+    }
   end
 
-  class ConfigEvaluation
-    include Internal::ComparedByValue
-
+  class ConfigEvaluation[out V < config_value] < Data
     attr_reader key: String
-    attr_reader value: config_value
+    attr_reader value: V
+    attr_reader reason: String
     attr_reader value_id: String?
     attr_reader variation: Variation?
-    attr_reader reason: String
     attr_reader context: Context?
 
-    @default_value: bool
+    def self.new: [V < config_value] (
+      key: String,
+      value: V,
+      default_value: bool,
+      reason: String,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?context: Context?
+    ) -> ConfigEvaluation[V]
 
     def initialize: (
       key: String,
-      value: config_value,
+      value: V,
       default_value: bool,
       reason: String,
       ?value_id: String?,
@@ -216,12 +341,42 @@ module ConfigDirector
       ?context: Context?
     ) -> void
 
+    def with: (
+      ?key: String,
+      ?default_value: bool,
+      ?reason: String,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?context: Context?
+    ) -> ConfigEvaluation[V]
+            | [W < config_value] (
+      value: W,
+      ?key: String,
+      ?default_value: bool,
+      ?reason: String,
+      ?value_id: String?,
+      ?variation: Variation?,
+      ?context: Context?
+    ) -> ConfigEvaluation[W]
+
+    def to_h: () -> {
+      key: String,
+      value: V,
+      default_value: bool,
+      reason: String,
+      value_id: String?,
+      variation: Variation?,
+      context: Context?
+    }
+
     def default_value?: () -> bool
+
+    private
+
+    attr_reader default_value: bool
   end
 
   class ConfigDirectorClient
-    WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE: Hash[String, String]
-
     @mode: String
     @timeout: Float
     @log: Internal::Logging::ClientLog
@@ -247,13 +402,31 @@ module ConfigDirector
 
     def ready?: () -> bool
 
-    def get_value: (String config_key, config_value default_value, ?Context? context) -> config_value
+    def get_value: (String config_key, bool default_value, ?Context? context) -> bool
+                 | (String config_key, String default_value, ?Context? context) -> String
+                 | (String config_key, Integer default_value, ?Context? context) -> Integer
+                 | (String config_key, Float default_value, ?Context? context) -> Float
+                 | (String config_key, Hash[String, untyped] default_value, ?Context? context) -> Hash[String, untyped]
+                 | [K] (String config_key, Hash[K, untyped] default_value, ?Context? context) -> Hash[K | String, untyped]
+                 | (String config_key, Array[untyped] default_value, ?Context? context) -> Array[untyped]
 
-    def evaluate: (String config_key, config_value default_value, ?Context? context) -> ConfigEvaluation
+    def evaluate: (String config_key, bool default_value, ?Context? context) -> ConfigEvaluation[bool]
+                | (String config_key, String default_value, ?Context? context) -> ConfigEvaluation[String]
+                | (String config_key, Integer default_value, ?Context? context) -> ConfigEvaluation[Integer]
+                | (String config_key, Float default_value, ?Context? context) -> ConfigEvaluation[Float]
+                | (String config_key, Hash[String, untyped] default_value, ?Context? context) -> ConfigEvaluation[Hash[String, untyped]]
+                | [K] (String config_key, Hash[K, untyped] default_value, ?Context? context) -> ConfigEvaluation[Hash[K | String, untyped]]
+                | (String config_key, Array[untyped] default_value, ?Context? context) -> ConfigEvaluation[Array[untyped]]
 
     def get_all_configs: (?context: Context?, ?config_keys: Array[String]?) -> Hash[String, ConfigState]
 
-    def watch: (String config_key, config_value default_value, ?Context? context) { (config_value value) -> void } -> Subscription
+    def watch: (String config_key, bool default_value, ?Context? context) { (bool value) -> void } -> Subscription
+             | (String config_key, String default_value, ?Context? context) { (String value) -> void } -> Subscription
+             | (String config_key, Integer default_value, ?Context? context) { (Integer value) -> void } -> Subscription
+             | (String config_key, Float default_value, ?Context? context) { (Float value) -> void } -> Subscription
+             | (String config_key, Hash[String, untyped] default_value, ?Context? context) { (Hash[String, untyped] value) -> void } -> Subscription
+             | [K] (String config_key, Hash[K, untyped] default_value, ?Context? context) { (Hash[K | String, untyped] value) -> void } -> Subscription
+             | (String config_key, Array[untyped] default_value, ?Context? context) { (Array[untyped] value) -> void } -> Subscription
 
     def unwatch: (String config_key, ?Proc? callback) -> nil
 
@@ -274,15 +447,19 @@ module ConfigDirector
 
     def closed?: () -> bool
 
+    def inspect: () -> String
+
     private
 
     def raise_if_closed: () -> void
+
+    def warn_unless_the_first_values_arrive_by: (Float give_up_at) -> void
+
+    def config_reader_over: (Internal::Telemetry::_ClientTelemetry telemetry) -> Internal::Client::ConfigReader
 
     def client_connection_over: (
       Internal::Connection::_Connection connection,
       Internal::Telemetry::_ClientTelemetry telemetry
     ) -> Internal::Client::ClientConnection
-
-    def warn_that_no_values_arrived_in_time: () -> void
   end
 end

@@ -10,8 +10,8 @@ module ConfigDirector
 
         private_constant :MAXIMUM_BYTES
 
-        def self.in(answer_body, server_sdk_key)
-          detail = written_forms_of(server_sdk_key).reduce(answer_body) do |text, written_form|
+        def self.of(answer_body, server_sdk_key_to_hide:)
+          detail = written_forms_of(server_sdk_key_to_hide).reduce(answer_body) do |text, written_form|
             text.gsub(written_form, "[the server SDK key]")
           end.strip
           return detail unless detail.bytesize > MAXIMUM_BYTES

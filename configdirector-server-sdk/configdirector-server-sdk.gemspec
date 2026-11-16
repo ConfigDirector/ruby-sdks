@@ -16,7 +16,9 @@ Gem::Specification.new do |spec|
     "rubygems_mfa_required" => "true"
   }
 
-  spec.files = Dir.glob(["lib/**/*.rb", "sig/**/*.rbs", "CHANGELOG.md", "LICENSE", "README.md"], base: __dir__)
+  spec.files = Dir.glob(
+    ["lib/**/*.rb", "sig/**/*.rbs", ".yardopts", "CHANGELOG.md", "LICENSE", "README.md"], base: __dir__
+  )
 
   spec.add_dependency "logger", "~> 1.6"
 end

@@ -20,11 +20,10 @@ module ConfigDirector
         end
 
         def self.name_of_a_config_key(given_key)
-          key_name = HashKeys.name_of(given_key)
-          return key_name unless key_name.nil?
-
-          raise UnservableValue,
-                "Invalid config key of class #{given_key.class}. A config key must be a String or a Symbol."
+          HashKeys.name_of(given_key) || raise(
+            UnservableValue,
+            "Invalid config key of class #{given_key.class}. A config key must be a String or a Symbol."
+          )
         end
 
         def self.config_key_named_by(given_key)

@@ -50,9 +50,10 @@ module ConfigDirector
           @reporting = :not_started
         end
 
-        def record(evaluated_read)
-          @lock.synchronize { @collected_telemetry.add(evaluated_read) if COLLECTS_BY_REPORTING.fetch(@reporting) }
-          nil
+        def record_evaluation(evaluated_read)
+          @lock.synchronize do
+            @collected_telemetry.add_evaluation(evaluated_read) if COLLECTS_BY_REPORTING.fetch(@reporting)
+          end
         end
 
         def record_tracked_event(admission)
@@ -80,21 +81,19 @@ module ConfigDirector
           when :forked_process then @collected_telemetry.keep_what_the_parent_process_collected
           end
           @schedule.start { report_what_was_collected } if @reporting == :on_the_schedule
-          nil
         end
 
         def close
           last_report = @lock.synchronize do
-            last_report = COLLECTS_BY_REPORTING.fetch(@reporting) ? @collected_telemetry.taken_for_a_report : nil
+            report = COLLECTS_BY_REPORTING.fetch(@reporting) ? @collected_telemetry.taken_for_a_report : nil
             @reporting = :closed
 
-            last_report
+            report
           end
 
           @schedule.stop
           @schedule.wait_for_a_report_being_sent
           send_to_the_endpoint(last_report) unless last_report.nil?
-          nil
         end
 
         private
@@ -110,7 +109,7 @@ module ConfigDirector
         def send_to_the_endpoint(report)
           return if report.empty?
 
-          case @reporter.what_follows_a_report_of(report)
+          case @reporter.what_follows_delivering(report)
           when :more_reports then nil
           when :no_more_reports then stop_collecting
           end

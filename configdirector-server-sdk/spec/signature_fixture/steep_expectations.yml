@@ -1,0 +1,79 @@
+---
+- file: spec/signature_fixture/reads_declared_as_text.rb
+  diagnostics:
+  - range:
+      start:
+        line: 4
+        character: 11
+      end:
+        line: 4
+        character: 31
+    severity: ERROR
+    message: |-
+      Cannot allow method body have type `bool` because declared as type `::String`
+        bool <: ::String
+          (true | false) <: ::String
+            true <: ::String
+              ::TrueClass <: ::String
+                ::Object <: ::String
+                  ::BasicObject <: ::String
+    code: Ruby::MethodBodyTypeMismatch
+  - range:
+      start:
+        line: 8
+        character: 11
+      end:
+        line: 8
+        character: 28
+    severity: ERROR
+    message: |-
+      Cannot allow method body have type `::Hash[::String, untyped]` because declared as type `::String`
+        ::Hash[::String, untyped] <: ::String
+          ::Object <: ::String
+            ::BasicObject <: ::String
+    code: Ruby::MethodBodyTypeMismatch
+  - range:
+      start:
+        line: 12
+        character: 11
+      end:
+        line: 12
+        character: 45
+    severity: ERROR
+    message: |-
+      Cannot allow method body have type `::Hash[(::Symbol | ::String), untyped]` because declared as type `::String`
+        ::Hash[(::Symbol | ::String), untyped] <: ::String
+          ::Object <: ::String
+            ::BasicObject <: ::String
+    code: Ruby::MethodBodyTypeMismatch
+  - range:
+      start:
+        line: 16
+        character: 11
+      end:
+        line: 16
+        character: 33
+    severity: ERROR
+    message: |-
+      Cannot allow method body have type `bool` because declared as type `::String`
+        bool <: ::String
+          (true | false) <: ::String
+            true <: ::String
+              ::TrueClass <: ::String
+                ::Object <: ::String
+                  ::BasicObject <: ::String
+    code: Ruby::MethodBodyTypeMismatch
+  - range:
+      start:
+        line: 21
+        character: 75
+      end:
+        line: 21
+        character: 92
+    severity: ERROR
+    message: |-
+      Cannot pass a value of type `::Hash[::String, untyped]` as an argument of type `::String`
+        ::Hash[::String, untyped] <: ::String
+          ::Object <: ::String
+            ::BasicObject <: ::String
+    code: Ruby::ArgumentTypeMismatch

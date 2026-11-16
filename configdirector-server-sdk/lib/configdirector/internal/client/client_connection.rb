@@ -11,7 +11,16 @@ module ConfigDirector
           "test" => :opened_again
         }.freeze
 
-        private_constant :CONNECTION_AT_A_LATER_INIT_BY_MODE
+        WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
+          "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
+                         "Configs will return the in-code default value until the connection succeeds.",
+          "polling" => "Since the client was configured without streaming, configs may not update and always " \
+                       "return the in-code default value.",
+          "offline" => "The offline values were not delivered, so configs return the in-code default value.",
+          "test" => "Configs return the in-code default value until values arrive."
+        }.freeze
+
+        private_constant :CONNECTION_AT_A_LATER_INIT_BY_MODE, :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
 
         def initialize(connection:, telemetry:, mode:, serving_state:, intake:, log:)
           @connection = connection
@@ -36,6 +45,13 @@ module ConfigDirector
           LiveClientConnections::OF_THE_PROCESS.remove(self)
           @connection.close
           @telemetry.close
+        end
+
+        def warn_that_no_values_arrived_within(timeout)
+          @log.warn(
+            "Timed out waiting for initialization after #{format("%g", timeout)}s. " \
+            "#{WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE.fetch(@mode)}"
+          )
         end
 
         def restart_in_a_forked_process(forked_through)

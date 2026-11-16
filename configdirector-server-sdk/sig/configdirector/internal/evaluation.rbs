@@ -177,6 +177,8 @@ module ConfigDirector
           default_variation_id: String?,
           rules: Array[Rule]
         ) -> instance
+
+        def default_targeting_rule_value: (a_rollout_was_skipped: bool) -> ServedValue
       end
 
       module ConfigEvaluator
@@ -187,9 +189,7 @@ module ConfigDirector
           segments segments
         ) -> ServedValue
 
-        def self.in_evaluation_order: (Array[Rule] rules) -> Array[Rule]
-
-        def self.default_targeting_rule_value: (TargetingRules targeting_rules, bool a_rollout_was_skipped) -> ServedValue
+        private def self.in_evaluation_order: (Array[Rule] rules) -> Array[Rule]
       end
 
       module ScalarText
@@ -198,15 +198,15 @@ module ConfigDirector
 
         def self.of: (json_value value) -> String?
 
-        def self.of_float: (Float number) -> String
+        private def self.of_float: (Float number) -> String
 
-        def self.of_positive_float: (Float number) -> String
+        private def self.of_positive_float: (Float number) -> String
 
-        def self.shortest_digits_and_point_position: (Float number) -> [String, Integer]
+        private def self.shortest_digits_and_point_position: (Float number) -> [String, Integer]
 
-        def self.leading_zeros_of: (String text) -> String
+        private def self.leading_zeros_of: (String text) -> String
 
-        def self.exponent_form: (String digits, Integer exponent) -> String
+        private def self.exponent_form: (String digits, Integer exponent) -> String
       end
 
       module TextComparison
@@ -242,19 +242,19 @@ module ConfigDirector
 
         def self.matches?: (json_value value, String operator, Array[String] targets) -> bool
 
-        def self.finite_number_of: (json_value value) -> Float?
+        private def self.finite_number_of: (json_value value) -> Float?
 
         def self.finite_number_in: (String text) -> Float?
 
-        def self.decimal_parts_of: (String text) -> [String, String, Integer]?
+        private def self.decimal_parts_of: (String text) -> [String, String, Integer]?
 
-        def self.rounding_of: (String significant_digits, Integer power_of_ten) -> rounding
+        private def self.rounding_of: (String significant_digits, Integer power_of_ten) -> rounding
 
-        def self.rounding_near_the_largest_float: (String significant_digits, Integer power_of_ten) -> rounding
+        private def self.rounding_near_the_largest_float: (String significant_digits, Integer power_of_ten) -> rounding
 
-        def self.rounding_near_the_smallest_float: (String significant_digits, Integer power_of_ten) -> rounding
+        private def self.rounding_near_the_smallest_float: (String significant_digits, Integer power_of_ten) -> rounding
 
-        def self.exact_value: (String significant_digits, Integer power_of_ten) -> Numeric
+        private def self.exact_value: (String significant_digits, Integer power_of_ten) -> Numeric
       end
 
       module SemverComparison
@@ -262,17 +262,17 @@ module ConfigDirector
 
         type operator = ^(version? version, Array[String] targets) -> bool
 
-        COERCIBLE_VERSION: Regexp
+        VERSION_IN_TEXT: Regexp
         NEVER_MATCHES: operator
         OPERATORS: Hash[String, operator]
 
         def self.matches?: (String text, String operator, Array[String] targets) -> bool
 
-        def self.coerce: (String text) -> version?
+        private def self.version_in: (String text) -> version?
 
-        def self.ordering: (version? version, String? target_text) -> Integer?
+        private def self.ordering: (version? version, String? target_text) -> Integer?
 
-        def self.equals_any?: (version? version, Array[String] targets) -> bool
+        private def self.equals_any?: (version? version, Array[String] targets) -> bool
       end
 
       module DatetimeComparison
@@ -281,30 +281,30 @@ module ConfigDirector
 
         def self.matches?: (String text, String operator, Array[String] targets) -> bool
 
-        def self.milliseconds_since_epoch_of: (String text) -> Integer?
+        private def self.milliseconds_since_epoch_of: (String text) -> Integer?
 
-        def self.possible_calendar_fields_of: (MatchData match) -> [Integer, Integer, Integer, Integer, Integer, Integer]?
+        private def self.possible_calendar_fields_of: (MatchData match) -> [Integer, Integer, Integer, Integer, Integer, Integer]?
 
-        def self.milliseconds_read_as_utc: (
+        private def self.milliseconds_read_as_utc: (
           [Integer, Integer, Integer, Integer, Integer, Integer] calendar_fields,
           String? fraction
         ) -> Integer
 
-        def self.offset_minutes_of: (String? offset) -> Integer?
+        private def self.offset_minutes_of: (String? offset) -> Integer?
 
-        def self.possible_date?: (Integer year, Integer month, Integer day) -> bool
+        private def self.possible_date?: (Integer year, Integer month, Integer day) -> bool
 
-        def self.possible_time?: (Integer hour, Integer minute, Integer second) -> bool
+        private def self.possible_time?: (Integer hour, Integer minute, Integer second) -> bool
 
-        def self.days_in_month: (Integer year, Integer month) -> Integer
+        private def self.days_in_month: (Integer year, Integer month) -> Integer
 
-        def self.leap_year?: (Integer year) -> bool
+        private def self.leap_year?: (Integer year) -> bool
       end
 
       module ArrayComparison
         def self.matches?: (json_value value, String operator, Array[String] targets) -> bool
 
-        def self.contains_any?: (Array[json_value] elements, Array[String] targets) -> bool
+        private def self.contains_any?: (Array[json_value] elements, Array[String] targets) -> bool
       end
 
       module TraitPointer
@@ -315,9 +315,9 @@ module ConfigDirector
 
         def self.value_at: (String pointer, json_value traits) -> json_value
 
-        def self.member_of: (json_value container, String token) -> json_value
+        private def self.member_of: (json_value container, String token) -> json_value
 
-        def self.element_of: (Array[json_value] elements, String token) -> json_value
+        private def self.element_of: (Array[json_value] elements, String token) -> json_value
       end
 
       module Rapidhash
@@ -330,27 +330,27 @@ module ConfigDirector
 
         def self.of: (String message, Integer seed) -> Integer
 
-        def self.short_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
+        private def self.short_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
 
-        def self.tiny_message_words: (String message, Integer length) -> [Integer, Integer]
+        private def self.tiny_message_words: (String message, Integer length) -> [Integer, Integer]
 
-        def self.long_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
+        private def self.long_message_words: (String message, Integer length, Integer seed) -> [Integer, Integer, Integer, Integer]
 
-        def self.blocks: (String message, Integer length, Integer seed) -> [Integer, Integer]
+        private def self.blocks: (String message, Integer length, Integer seed) -> [Integer, Integer]
 
-        def self.mix_block: (String message, Integer offset, Array[Integer] lanes) -> Array[Integer]
+        private def self.mix_block: (String message, Integer offset, Array[Integer] lanes) -> Array[Integer]
 
-        def self.remainder_pairs: (String message, Integer offset, Integer length, Integer seed) -> Integer
+        private def self.remainder_pairs: (String message, Integer offset, Integer length, Integer seed) -> Integer
 
-        def self.mix: (Integer multiplicand, Integer multiplier) -> Integer
+        private def self.mix: (Integer multiplicand, Integer multiplier) -> Integer
 
-        def self.finish: (Integer first_word, Integer second_word, Integer last_block_length) -> Integer
+        private def self.finish: (Integer first_word, Integer second_word, Integer last_block_length) -> Integer
 
-        def self.read64: (String message, Integer offset) -> Integer
+        private def self.read64: (String message, Integer offset) -> Integer
 
-        def self.read32: (String message, Integer offset) -> Integer
+        private def self.read32: (String message, Integer offset) -> Integer
 
-        def self.read8: (String message, Integer offset) -> Integer
+        private def self.read8: (String message, Integer offset) -> Integer
       end
 
       module AssignedPercentage

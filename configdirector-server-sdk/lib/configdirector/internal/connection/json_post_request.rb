@@ -7,7 +7,7 @@ module ConfigDirector
   module Internal
     module Connection
       module JsonPostRequest
-        def self.to(uri, sdk_identity, **body)
+        def self.to(uri, sdk_identity, body)
           carrying(JSON.generate(body), uri, sdk_identity)
         end
 

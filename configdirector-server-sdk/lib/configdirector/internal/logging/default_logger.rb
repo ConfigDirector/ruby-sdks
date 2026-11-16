@@ -7,7 +7,7 @@ module ConfigDirector
     module Logging
       module DefaultLogger
         LINE_PREFIX = "[ConfigDirector:ruby-server-sdk]"
-        LINE_FORMAT = ->(severity, _time, _program_name, message) { "#{LINE_PREFIX} #{severity}: #{message}\n" }
+        LINE_FORMAT = ->(severity, _time, _program_name, message) { "#{LINE_PREFIX} #{severity}: #{message}\n" }.freeze
         LOGGER_LEVELS = (Logger::DEBUG..Logger::UNKNOWN)
 
         def self.writing_from(log_level)

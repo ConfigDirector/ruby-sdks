@@ -19,7 +19,7 @@ module ConfigDirector
           loop do
             case @lock.synchronize { delivery_of_the_waiting_payloads }
             when :left_to_another_call then return nil
-            when :taken_by_this_call then deliver_every_waiting_payload(deliver_payload)
+            when :taken_by_this_call then deliver_every_waiting_payload(&deliver_payload)
             end
           end
         end
@@ -33,9 +33,9 @@ module ConfigDirector
           :taken_by_this_call
         end
 
-        def deliver_every_waiting_payload(deliver_payload)
+        def deliver_every_waiting_payload
           while (payload = @lock.synchronize { @waiting_payloads.shift })
-            deliver_payload.call(payload)
+            yield payload
           end
         ensure
           @lock.synchronize { @delivering = false }

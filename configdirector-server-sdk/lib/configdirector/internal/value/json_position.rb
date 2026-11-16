@@ -11,13 +11,11 @@ module ConfigDirector
         end
 
         def of_member(key_text)
-          JsonPosition.new(
-            config_key: config_key, path: path.empty? ? key_text : "#{path}.#{key_text}", nesting: nesting + 1
-          )
+          with(path: path.empty? ? key_text : "#{path}.#{key_text}", nesting: nesting + 1)
         end
 
         def of_element(index)
-          JsonPosition.new(config_key: config_key, path: "#{path}[#{index}]", nesting: nesting + 1)
+          with(path: "#{path}[#{index}]", nesting: nesting + 1)
         end
 
         def unservable_because(problem)

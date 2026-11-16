@@ -1,0 +1,33 @@
+module ConfigDirector
+  module Internal
+    module Logging
+      module DefaultLogger
+        LINE_PREFIX: String
+        LINE_FORMAT: ^(String severity, Time time, untyped program_name, untyped message) -> String
+        LOGGER_LEVELS: Range[Integer]
+
+        def self.writing_from: (untyped log_level) -> Logger
+
+        private def self.invalid: (untyped log_level) -> ConfigDirectorValidationError
+      end
+
+      class ClientLog
+        @logger: _Logger
+        @line_prefix: String
+        @writes_debug_lines: _LogLevelCheck
+
+        def initialize: (_Logger & Object logger, ?component: String) -> void
+
+        def debug: () { () -> String } -> void
+
+        def info: (String line) -> void
+
+        def warn: (String line) -> void
+
+        def error: (String line) -> void
+
+        def ignoring_errors_from: (String source) { () -> untyped } -> void
+      end
+    end
+  end
+end

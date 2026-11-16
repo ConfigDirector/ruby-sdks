@@ -10,13 +10,15 @@ module ConfigDirector
         BYTE_ORDER_MARK = "\uFEFF"
         ASCII_DIGITS = /\A[0-9]+\z/
 
+        private_constant :MAXIMUM_LINE_BYTES, :MAXIMUM_EVENT_DATA_BYTES, :LINE_END, :BYTE_ORDER_MARK, :ASCII_DIGITS
+
         attr_reader :last_event_id, :retry_milliseconds
 
         def initialize(last_event_id:, &on_event)
           @last_event_id = last_event_id
           @on_event = on_event
           @at_the_start_of_the_stream = true
-          @unfinished_line = String.new
+          @unfinished_line = String.new(encoding: Encoding::BINARY)
           @last_chunk_ended_on_a_carriage_return = false
           @event_type = ""
           @event_data = String.new(encoding: Encoding::UTF_8)
@@ -49,7 +51,7 @@ module ConfigDirector
         def finish_line(fragment)
           extend_unfinished_line(fragment)
           line = @unfinished_line.force_encoding(Encoding::UTF_8).scrub!
-          @unfinished_line = String.new
+          @unfinished_line = String.new(encoding: Encoding::BINARY)
           line = line.delete_prefix(BYTE_ORDER_MARK) if @at_the_start_of_the_stream
           @at_the_start_of_the_stream = false
           read_line(line)
@@ -87,8 +89,6 @@ module ConfigDirector
           @event_data = String.new(encoding: Encoding::UTF_8)
           @on_event.call(event) unless event.data.empty?
         end
-
-        private_constant :MAXIMUM_LINE_BYTES, :MAXIMUM_EVENT_DATA_BYTES, :LINE_END, :BYTE_ORDER_MARK, :ASCII_DIGITS
       end
     end
   end

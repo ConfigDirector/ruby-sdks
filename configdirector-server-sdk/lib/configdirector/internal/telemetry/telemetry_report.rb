@@ -33,10 +33,9 @@ module ConfigDirector
         end
 
         def counts_by_wire_event
-          counts_by_wire_event = Hash.new(0)
-          evaluations.tally.each { |evaluation, count| counts_by_wire_event[evaluation.wire_event] += count }
-
-          counts_by_wire_event
+          evaluations.tally.each_with_object(Hash.new(0)) do |(evaluation, count), counts|
+            counts[evaluation.wire_event] += count
+          end
         end
       end
     end

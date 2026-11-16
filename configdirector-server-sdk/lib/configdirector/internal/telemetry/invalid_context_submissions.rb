@@ -25,11 +25,12 @@ module ConfigDirector
         end
 
         def wire_entries_taken_for_a_report(now)
-          counted_since = @counted_since
-
-          AggregatedWireEntries.of(
-            counts_by_wire_event_taken_for_a_report, counted_since: counted_since, counted_until: now
+          wire_entries = AggregatedWireEntries.of(
+            counts_by_wire_event, counted_since: @counted_since, counted_until: now
           )
+          discard
+
+          wire_entries
         end
 
         def discard
@@ -55,14 +56,13 @@ module ConfigDirector
           @count_beyond_the_sample_limit == 1 ? :first_beyond_sample_limit : :beyond_sample_limit
         end
 
-        def counts_by_wire_event_taken_for_a_report
+        def counts_by_wire_event
           counts_by_wire_event = @counts_by_kind_sample.to_h do |kind_sample, count|
             [wire_event_of(kind_sample), count]
           end
           unless @count_beyond_the_sample_limit.zero?
             counts_by_wire_event[wire_event_of(nil)] = @count_beyond_the_sample_limit
           end
-          discard
 
           counts_by_wire_event
         end

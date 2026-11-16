@@ -36,7 +36,7 @@ module ConfigDirector
         def self.dropped(cause, milliseconds_named_by_the_stream:, last_event_id:)
           new(
             kind: :dropped, cause: cause, status: nil,
-            seconds_the_server_asked_to_wait: milliseconds_named_by_the_stream&./(MILLISECONDS_PER_SECOND),
+            seconds_the_server_asked_to_wait: milliseconds_named_by_the_stream&.fdiv(MILLISECONDS_PER_SECOND),
             last_event_id: last_event_id
           )
         end

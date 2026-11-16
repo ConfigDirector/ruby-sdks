@@ -20,7 +20,7 @@ module ConfigDirector
           @lock.synchronize do
             heartbeat_thread = StoppableThread.start("configdirector-heartbeat") { @heartbeats.send_on_every_interval }
             stream_thread = StoppableThread.start("configdirector-streaming") do
-              @stream.keep_open(report_unrecoverable_error, deliver_event_data)
+              @stream.keep_open(report_unrecoverable_error: report_unrecoverable_error, &deliver_event_data)
             ensure
               heartbeat_thread.stop
             end

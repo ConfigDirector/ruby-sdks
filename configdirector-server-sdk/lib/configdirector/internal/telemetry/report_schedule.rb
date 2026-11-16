@@ -19,7 +19,6 @@ module ConfigDirector
           thread = Thread.new { send_a_report_on_every_interval(send_a_report) }
           thread.name = "configdirector-telemetry"
           @thread = thread
-          nil
         end
 
         def stop
@@ -27,13 +26,11 @@ module ConfigDirector
             @stopped = true
             @no_longer_waiting_for_the_next_report.broadcast
           end
-          nil
         end
 
         def wait_for_a_report_being_sent
           thread = @lock.synchronize { @thread }
           thread&.join(@timing.seconds_a_report_may_take) unless thread.equal?(Thread.current)
-          nil
         end
 
         private

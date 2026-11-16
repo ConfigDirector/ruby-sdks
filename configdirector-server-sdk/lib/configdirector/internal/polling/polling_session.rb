@@ -15,13 +15,14 @@ module ConfigDirector
           @seconds_before_the_next_poll = timing.seconds_between_polls
         end
 
-        def poll(report_unrecoverable_error, deliver_payload_text)
+        def poll(report_unrecoverable_error:, &deliver_payload_text)
           answer = answer_retried_once_when_unanswered
           @seconds_before_the_next_poll = answer.seconds_before_the_next_poll(@timing.seconds_between_polls)
+
           what_follows = answer.what_follows
 
           case what_follows
-          when :delivery then what_follows = deliver(answer, deliver_payload_text)
+          when :delivery then return deliver(answer, &deliver_payload_text)
           when :no_delivery then nil
           when :error_log then log_the_failure_of(answer)
           when :end_of_polling then log_and_report_the_unrecoverable_error_of(answer, report_unrecoverable_error)
@@ -36,16 +37,18 @@ module ConfigDirector
           )
         end
 
-        def poll_at_once_and_on_every_interval(report_unrecoverable_error, deliver_payload_text)
-          return if poll(report_unrecoverable_error, deliver_payload_text) == :end_of_polling
+        def poll_at_once_and_on_every_interval(report_unrecoverable_error:, &deliver_payload_text)
+          what_follows_the_poll = poll(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text)
+          return if what_follows_the_poll == :end_of_polling
 
-          poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+          poll_on_every_interval(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text)
         end
 
-        def poll_on_every_interval(report_unrecoverable_error, deliver_payload_text)
+        def poll_on_every_interval(report_unrecoverable_error:, &deliver_payload_text)
           loop do
             StoppableThread.stoppable { @timing.pause_before_the_next_poll.call(@seconds_before_the_next_poll) }
-            break if poll(report_unrecoverable_error, deliver_payload_text) == :end_of_polling
+            what_follows_the_poll = poll(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload_text)
+            break if what_follows_the_poll == :end_of_polling
           end
         end
 
@@ -72,8 +75,8 @@ module ConfigDirector
           StoppableThread.stoppable { request.answer }
         end
 
-        def deliver(answer, deliver_payload_text)
-          deliver_payload_text.call(answer.payload_text.to_s)
+        def deliver(answer)
+          yield answer.payload_text.to_s
           @last_update_timestamp = answer.timestamp || @last_update_timestamp
           :delivery
         rescue StandardError => e

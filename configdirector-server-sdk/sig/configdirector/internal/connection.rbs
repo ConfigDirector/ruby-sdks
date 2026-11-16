@@ -23,14 +23,16 @@ module ConfigDirector
         ) -> _Connection
       end
 
-      class NotAServerSdkPayload < StandardError
+      class NotAServerSdkPayload < ConfigDirectorError
       end
 
-      class UnreadableDefinition < StandardError
+      class UnreadableDefinition < ConfigDirectorError
       end
 
       class ServerSdkPayload < Data
         attr_reader delta: bool
+
+        alias delta? delta
         attr_reader configs: Hash[String, ConfigDefinition]
         attr_reader segments: Evaluation::segments
         attr_reader unreadable_configs: Hash[String, String]
@@ -113,25 +115,25 @@ module ConfigDirector
 
         def self.condition_group_defined_by: (untyped wire_condition_group) -> Array[Evaluation::AttributeCondition]
 
-        def self.kind_of: (Hash[untyped, untyped] wire_condition) -> untyped
+        private def self.kind_named_in: (Hash[untyped, untyped] wire_condition) -> untyped
 
-        def self.attribute_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::AttributeCondition
+        private def self.attribute_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::AttributeCondition
 
-        def self.target_value_text_of: (untyped wire_target_value) -> String
+        private def self.target_value_text_of: (untyped wire_target_value) -> String
 
-        def self.segment_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::SegmentCondition
+        private def self.segment_condition_defined_by: (Hash[untyped, untyped] wire_condition) -> Evaluation::SegmentCondition
       end
 
       module TargetingRulesParser
         def self.targeting_rules_defined_by: (Hash[untyped, untyped] wire_target) -> Evaluation::TargetingRules
 
-        def self.rule_defined_by: (Hash[untyped, untyped] wire_rule) -> Evaluation::Rule
+        private def self.rule_defined_by: (Hash[untyped, untyped] wire_rule) -> Evaluation::Rule
 
-        def self.conditions_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::_Condition]
+        private def self.conditions_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::_Condition]
 
-        def self.shares_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::Share]?
+        private def self.shares_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::Share]?
 
-        def self.share_defined_by: (untyped wire_share) -> Evaluation::Share
+        private def self.share_defined_by: (untyped wire_share) -> Evaluation::Share
       end
 
       module ServerSdkPayloadParser
@@ -139,31 +141,31 @@ module ConfigDirector
 
         def self.payload_in: (String payload_text) -> ServerSdkPayload
 
-        def self.payload_defined_by: (
+        private def self.payload_defined_by: (
           untyped wire_kind,
           Hash[untyped, untyped] wire_configs,
           Hash[untyped, untyped] wire_segments
         ) -> ServerSdkPayload
 
-        def self.definitions_read_in: [Definition] (
+        private def self.definitions_read_in: [Definition] (
           Hash[untyped, untyped] wire_definitions
         ) { (untyped wire_definition) -> Definition } -> [Hash[String, Definition], Hash[String, String]]
 
-        def self.config_defined_by: (untyped wire_config) -> ConfigDefinition
+        private def self.config_defined_by: (untyped wire_config) -> ConfigDefinition
 
-        def self.variations_listed_in: (Hash[untyped, untyped] wire_config) -> Array[Variation]
+        private def self.variations_listed_in: (Hash[untyped, untyped] wire_config) -> Array[Variation]
 
-        def self.segment_defined_by: (untyped wire_segment) -> Evaluation::Segment
+        private def self.segment_defined_by: (untyped wire_segment) -> Evaluation::Segment
       end
 
       module OfflineValuesFile
         def self.values_in: (String | Pathname path) -> Hash[String, untyped]
 
-        def self.text_of: (String | Pathname path) -> String
+        private def self.text_of: (String | Pathname path) -> String
 
-        def self.document_in: (String text, String | Pathname path) -> untyped
+        private def self.document_in: (String text, String | Pathname path) -> untyped
 
-        def self.description_of: (untyped document) -> String
+        private def self.description_of: (untyped document) -> String
       end
 
       class OfflineModeConnection
@@ -174,19 +176,21 @@ module ConfigDirector
 
         def self.for_a_client_with: (connection_options: ConnectionOptions, **untyped) -> OfflineModeConnection
 
-        def self.offline_source_given_by: (untyped file, untyped values) -> (:no_values | :values | :file | :file_and_values)
+        private def self.offline_source_given_by: (untyped file, untyped values) -> (:no_values | :values | :file | :file_and_values)
 
-        def self.serving_the_payload: (ServerSdkPayload payload) -> OfflineModeConnection
+        private def self.serving_the_payload: (ServerSdkPayload payload) -> OfflineModeConnection
 
-        def self.reading_the_file: (untyped file) -> OfflineModeConnection
+        private def self.reading_the_file: (untyped file) -> OfflineModeConnection
 
-        def self.payload_serving_the_given_values: (untyped values) -> ServerSdkPayload
+        private def self.payload_serving_the_given_values: (untyped values) -> ServerSdkPayload
 
-        def self.payload_serving_the_values_in_the_file: (String | Pathname file) -> ServerSdkPayload
+        private def self.payload_serving_the_values_in_the_file: (String | Pathname file) -> ServerSdkPayload
 
-        def self.payload_serving: (Hash[untyped, untyped] values) -> ServerSdkPayload
+        private def self.payload_serving: (Hash[untyped, untyped] values) -> ServerSdkPayload
 
-        def initialize: (^() -> ServerSdkPayload payload_of_the_offline_values) -> void
+        private def self.new: () { () -> ServerSdkPayload } -> instance
+
+        def initialize: () { () -> ServerSdkPayload } -> void
 
         def open: (**untyped) { (ServerSdkPayload payload) -> void } -> Symbol
 
@@ -330,7 +334,7 @@ module ConfigDirector
 
         def delivery_of_the_waiting_payloads: () -> (:left_to_another_call | :taken_by_this_call)
 
-        def deliver_every_waiting_payload: (^(ServerSdkPayload payload) -> void deliver_payload) -> void
+        def deliver_every_waiting_payload: () { (ServerSdkPayload payload) -> void } -> void
       end
 
       class PollingInterval < Data
@@ -346,7 +350,7 @@ module ConfigDirector
       end
 
       module JsonPostRequest
-        def self.to: (URI::Generic uri, Identity::SdkIdentity sdk_identity, **untyped body) -> Net::HTTP::Post
+        def self.to: (URI::Generic uri, Identity::SdkIdentity sdk_identity, Hash[Symbol, untyped] body) -> Net::HTTP::Post
 
         def self.carrying: (String json_text, URI::Generic uri, Identity::SdkIdentity sdk_identity) -> Net::HTTP::Post
       end
@@ -354,8 +358,7 @@ module ConfigDirector
       class RequestDeadline
         @monotonic_seconds: ^() -> Float
         @passes_at: Float
-
-        attr_reader seconds_the_request_may_take: seconds
+        @seconds_the_request_may_take: seconds
 
         def self.on_the_clock_of_the_process: (seconds seconds_the_request_may_take) -> RequestDeadline
 

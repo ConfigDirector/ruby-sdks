@@ -261,6 +261,18 @@ RSpec.describe "Reading a config" do
     expect(client.evaluate("integer-config", 10)).to be_frozen
   end
 
+  it "returns an evaluation that matches a pattern on its values" do
+    served_value_id = case client.evaluate("temporary-feature-flag", false, identified_context)
+                      in { reason: "found-match", variation: { name: "On" }, value_id: } then value_id
+                      end
+
+    expect(served_value_id).to eq("value-flag-on")
+  end
+
+  it "returns an evaluation that tells whether it returned the in-code default value only through default_value?" do
+    expect(client.evaluate("integer-config", 10)).not_to respond_to(:default_value)
+  end
+
   it "raises for a nil in-code default value" do
     expect { client.get_value("integer-config", nil) }
       .to raise_error(ConfigDirector::ConfigDirectorValidationError)

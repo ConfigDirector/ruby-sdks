@@ -60,7 +60,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "on its schedule" do
     it "sends the first report after the wait before it, and the next one an interval after the first ended" do
       telemetry = telemetry_reporting(seconds_before_the_first_report: 0.4, seconds_between_reports: 0.8)
-      telemetry.record(read_of("read-before-the-first-report"))
+      telemetry.record_evaluation(read_of("read-before-the-first-report"))
       first_request = nil
       second_request = nil
 
@@ -68,7 +68,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
         telemetry.start_reporting
         first_request = sdk_server.next_telemetry_request
       end
-      telemetry.record(read_of("read-before-the-second-report"))
+      telemetry.record_evaluation(read_of("read-before-the-second-report"))
       first_request.answer(status: 204)
       seconds_between_the_reports = seconds_taken { second_request = sdk_server.next_telemetry_request }
 
@@ -80,7 +80,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "sends nothing before it is started" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("day-of-the-week"))
+      telemetry.record_evaluation(read_of("day-of-the-week"))
 
       expect(no_report_arrives_within?(0.3)).to be(true)
     end
@@ -96,11 +96,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 401" do
     it "sends no further report and logs one warning" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
 
-      telemetry.record(read_of("read-after-the-refusal"))
+      telemetry.record_evaluation(read_of("read-after-the-refusal"))
 
       expect(no_report_arrives_within?(0.4)).to be(true)
       expect(logger.messages_at(:warn)).to eq(
@@ -113,11 +113,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "sends no last report when it is closed" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
       Waiting.wait_up_to(2) { logger.messages_at(:warn).any? }
-      telemetry.record(read_of("read-after-the-refusal"))
+      telemetry.record_evaluation(read_of("read-after-the-refusal"))
 
       telemetry.close
 
@@ -126,7 +126,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "ends its thread" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
 
@@ -139,13 +139,13 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when it is started again after a refusal" do
     it "sends no report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
       Waiting.wait_up_to(2) { logger.messages_at(:warn).any? }
 
       telemetry.start_reporting
-      telemetry.record(read_of("read-after-the-refusal"))
+      telemetry.record_evaluation(read_of("read-after-the-refusal"))
 
       expect(no_report_arrives_within?(0.4)).to be(true)
     end
@@ -154,7 +154,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "in a forked process, after a refusal" do
     it "starts no thread" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
       Waiting.wait_up_to(2) { Thread.list.none? { |thread| thread.name == "configdirector-telemetry" } }
@@ -168,11 +168,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 404" do
     it "sends no further report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 404)
 
-      telemetry.record(read_of("read-after-the-refusal"))
+      telemetry.record_evaluation(read_of("read-after-the-refusal"))
 
       expect(no_report_arrives_within?(0.4)).to be(true)
     end
@@ -181,11 +181,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 413" do
     it "discards that report, logs one warning and sends the next report without counting dropped events" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-that-was-too-large"))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-was-too-large"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 413)
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
       next_request = sdk_server.next_telemetry_request
 
       expect(config_keys_reported_in(next_request)).to eq(["read-in-the-next-report"])
@@ -202,11 +202,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 429" do
     it "discards that report, logs one warning and sends the next report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-that-was-throttled"))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-was-throttled"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 429)
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
 
       expect(config_keys_reported_in(sdk_server.next_telemetry_request)).to eq(["read-in-the-next-report"])
       expect(logger.messages_at(:warn)).to eq(
@@ -221,11 +221,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 500" do
     it "discards that report, logs one warning and sends the next report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-that-failed"))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-failed"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 500)
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
 
       expect(config_keys_reported_in(sdk_server.next_telemetry_request)).to eq(["read-in-the-next-report"])
       expect(logger.messages_at(:warn)).to eq(
@@ -240,7 +240,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server answers 204" do
     it "logs at debug level that the report was sent, and no warning" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("day-of-the-week"))
+      telemetry.record_evaluation(read_of("day-of-the-week"))
       telemetry.start_reporting
 
       sdk_server.next_telemetry_request.answer(status: 204)
@@ -254,11 +254,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server drops the connection without an answer" do
     it "discards that report, logs one warning with the cause and sends the next report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-that-got-no-answer"))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-got-no-answer"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.drop
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
 
       expect(config_keys_reported_in(sdk_server.next_telemetry_request)).to eq(["read-in-the-next-report"])
       warnings = logger.messages_at(:warn)
@@ -270,11 +270,11 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when the SDK server does not answer in time" do
     it "gives the report up after the time a report may take, logs one warning and sends the next report" do
       telemetry = telemetry_reporting(seconds_a_report_may_take: 0.3)
-      telemetry.record(read_of("read-in-the-report-that-timed-out"))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-timed-out"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
       seconds_before_the_next_report = seconds_taken { sdk_server.next_telemetry_request }
 
       expect(seconds_before_the_next_report).to be_between(0.25, 1)
@@ -299,12 +299,12 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "logs one warning, sends nothing of that report and sends the next report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-that-cannot-be-written",
-                               context: context_with_a_trait_that_cannot_be_written))
+      telemetry.record_evaluation(read_of("read-in-the-report-that-cannot-be-written",
+                                          context: context_with_a_trait_that_cannot_be_written))
       telemetry.start_reporting
       Waiting.wait_up_to(2) { logger.messages_at(:warn).any? }
 
-      telemetry.record(read_of("read-in-the-next-report"))
+      telemetry.record_evaluation(read_of("read-in-the-next-report"))
 
       expect(config_keys_reported_in(sdk_server.next_telemetry_request)).to eq(["read-in-the-next-report"])
       expect(logger.messages_at(:warn)).to eq(
@@ -314,7 +314,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "logs one warning and sends nothing when it is closed" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("day-of-the-week", context: context_with_a_trait_that_cannot_be_written))
+      telemetry.record_evaluation(read_of("day-of-the-week", context: context_with_a_trait_that_cannot_be_written))
 
       telemetry.close
 
@@ -331,7 +331,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
         ScriptedSdkServer.url_nothing_listens_on,
         ConfigDirector::Internal::Telemetry::ReportTiming.of_a_client_reporting_every(30)
       )
-      telemetry.record(read_of("day-of-the-week"))
+      telemetry.record_evaluation(read_of("day-of-the-week"))
 
       telemetry.close
 
@@ -344,10 +344,10 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
   describe "when it is closed" do
     it "waits for a report that is being sent, then sends the last report" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-in-the-report-being-sent"))
+      telemetry.record_evaluation(read_of("read-in-the-report-being-sent"))
       telemetry.start_reporting
       request_being_sent = sdk_server.next_telemetry_request
-      telemetry.record(read_of("read-in-the-last-report"))
+      telemetry.record_evaluation(read_of("read-in-the-last-report"))
 
       closing = Thread.new { telemetry.close }
       no_last_report_while_one_is_being_sent = no_report_arrives_within?(0.3)
@@ -364,10 +364,10 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "returns within the time two reports may take when the SDK server answers neither" do
       telemetry = telemetry_reporting(seconds_a_report_may_take: 0.3)
-      telemetry.record(read_of("read-in-the-report-being-sent"))
+      telemetry.record_evaluation(read_of("read-in-the-report-being-sent"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request
-      telemetry.record(read_of("read-in-the-last-report"))
+      telemetry.record_evaluation(read_of("read-in-the-last-report"))
 
       seconds_close_took = seconds_taken { telemetry.close }
 
@@ -378,7 +378,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
     it "sends nothing for a read recorded afterwards when it is closed again" do
       telemetry = telemetry_reporting
       telemetry.close
-      telemetry.record(read_of("read-after-close"))
+      telemetry.record_evaluation(read_of("read-after-close"))
 
       telemetry.close
 
@@ -390,7 +390,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
       telemetry.start_reporting
 
       telemetry.close
-      telemetry.record(read_of("read-after-close"))
+      telemetry.record_evaluation(read_of("read-after-close"))
 
       expect(no_report_arrives_within?(0.3)).to be(true)
     end
@@ -423,7 +423,7 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
 
     it "stays known after a refusal that stopped the reports" do
       telemetry = telemetry_reporting
-      telemetry.record(read_of("read-before-the-refusal"))
+      telemetry.record_evaluation(read_of("read-before-the-refusal"))
       telemetry.start_reporting
       sdk_server.next_telemetry_request.answer(status: 401)
       Waiting.wait_up_to(2) { logger.messages_at(:warn).any? }

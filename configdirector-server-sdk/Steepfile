@@ -1,8 +1,17 @@
 # frozen_string_literal: true
 
+LIBRARIES = %w[digest json logger monitor net-http pathname securerandom time uri].freeze
+
 target :lib do
   signature "sig", "sig_missing_from_rbs"
-  library "digest", "json", "logger", "monitor", "net-http", "pathname", "securerandom", "time", "uri"
+  library(*LIBRARIES)
   check "lib"
+  configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
+end
+
+target :signature_fixture do
+  signature "sig", "sig_missing_from_rbs", "spec/signature_fixture"
+  library(*LIBRARIES)
+  check "spec/signature_fixture"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end

@@ -1,15 +1,5 @@
 module ConfigDirector
   module Internal
-    module ComparedByValue : Object
-      def ==: (untyped other) -> bool
-
-      def eql?: (untyped other) -> bool
-
-      def hash: () -> Integer
-
-      def attribute_values: () -> Array[untyped]
-    end
-
     module UnchangeableCopy
       def self.of: (untyped value) -> untyped
     end
@@ -28,11 +18,11 @@ module ConfigDirector
           logger: untyped
         ) -> void
 
-        def self.reject_an_option_of_another_class: (String option_name, untyped option, Class option_class) -> void
+        private def self.reject_an_option_of_another_class: (String option_name, untyped option, Class option_class) -> void
 
         def self.reject_an_unusable_logger: (untyped logger) -> void
 
-        def self.reject_unusable_telemetry: (TelemetryOptions telemetry) -> void
+        private def self.reject_unusable_telemetry: (TelemetryOptions telemetry) -> void
       end
 
       module ConnectionOptionsValidation
@@ -40,24 +30,24 @@ module ConfigDirector
 
         def self.reject_unusable: (ConnectionOptions connection, untyped server_sdk_key) -> void
 
-        def self.reject_an_unknown_mode: (untyped mode) -> void
+        private def self.reject_an_unknown_mode: (untyped mode) -> void
 
-        def self.reject_an_unusable_connection_to_configdirector: (
+        private def self.reject_an_unusable_connection_to_configdirector: (
           ConnectionOptions connection,
           untyped server_sdk_key
         ) -> void
 
         def self.reject_a_timeout_that_is_not_positive: (untyped timeout) -> void
 
-        def self.reject_an_offline_timeout_that_is_not_a_number: (untyped timeout) -> void
+        private def self.reject_an_offline_timeout_that_is_not_a_number: (untyped timeout) -> void
 
-        def self.reject_an_unusable_server_sdk_key: (untyped server_sdk_key) -> void
+        private def self.reject_an_unusable_server_sdk_key: (untyped server_sdk_key) -> void
 
-        def self.reject_offline_values_given_to: (ConnectionOptions connection) -> void
+        private def self.reject_offline_values_given_to: (ConnectionOptions connection) -> void
 
-        def self.reject_an_unusable_url: (untyped url) -> void
+        private def self.reject_an_unusable_url: (untyped url) -> void
 
-        def self.http_url?: (untyped url) -> bool
+        private def self.http_url?: (untyped url) -> bool
       end
 
       module NumberOfSeconds
@@ -75,9 +65,9 @@ module ConfigDirector
 
         def self.anonymous_flag: (untyped anonymous) -> bool
 
-        def self.with_symbols_as_text: (untyped trait) -> untyped
+        private def self.with_symbols_as_text: (untyped trait) -> untyped
 
-        def self.text_of_a_symbol: (untyped key_or_value) -> untyped
+        private def self.text_of_a_symbol: (untyped key_or_value) -> untyped
       end
 
       module ContextKind
@@ -118,10 +108,10 @@ module ConfigDirector
 
       class EvaluatedRead < Data
         attr_reader config_read: ConfigRead
-        attr_reader evaluation: ConfigEvaluation
+        attr_reader evaluation: ConfigEvaluation[config_value]
         attr_reader config_state: ConfigState?
 
-        def self.new: (config_read: ConfigRead, evaluation: ConfigEvaluation, config_state: ConfigState?) -> instance
+        def self.new: (config_read: ConfigRead, evaluation: ConfigEvaluation[config_value], config_state: ConfigState?) -> instance
       end
 
       type arrival_of_values = :after_close | :first_values | :newer_values
@@ -136,7 +126,7 @@ module ConfigDirector
 
         def initialize: (mode: String, telemetry: Telemetry::_ClientTelemetry, log: Logging::ClientLog) -> void
 
-        def track: (untyped event_name, untyped context, untyped value, untyped details) -> nil
+        def track: (untyped event_name, untyped context, value: untyped, details: untyped) -> nil
       end
 
       class ConfigReader
@@ -147,15 +137,21 @@ module ConfigDirector
         @context_admission: ContextAdmission
 
         def initialize: (
-          ServingState serving_state,
-          EventHandlers event_handlers,
-          Telemetry::_ClientTelemetry telemetry,
-          Logging::ClientLog log
+          serving_state: ServingState,
+          event_handlers: EventHandlers,
+          telemetry: Telemetry::_ClientTelemetry,
+          log: Logging::ClientLog
         ) -> void
 
         def config_read_of: (untyped config_key, untyped default_value, untyped context) -> ConfigRead
 
-        def read: (ConfigRead config_read) -> ConfigEvaluation
+        def evaluation_of: (
+          String config_key,
+          config_value default_value,
+          Context? context
+        ) -> ConfigEvaluation[untyped]
+
+        def read: (ConfigRead config_read) -> ConfigEvaluation[config_value]
 
         def states: (untyped context, untyped config_keys) -> Hash[String, ConfigState]
 
@@ -207,7 +203,7 @@ module ConfigDirector
 
         def deliver_configs_updated: (ConfigsUpdatedEvent update) -> void
 
-        def deliver_config_evaluated: (ConfigEvaluation evaluation) -> void
+        def deliver_config_evaluated: (ConfigEvaluation[config_value] evaluation) -> void
 
         def deliver_connection_error: (ConfigDirectorConnectionError error) -> void
 
@@ -273,7 +269,7 @@ module ConfigDirector
           logger: (_Logger & Object)?
         ) -> Testing::TestClient
 
-        def self.client_with_usable_options: (
+        private def self.client_with_usable_options: (
           sdk_identity: Identity::SdkIdentity,
           server_sdk_key: String,
           metadata: Metadata,
@@ -283,14 +279,14 @@ module ConfigDirector
           hooks: ClientHooks
         ) -> ConfigDirectorClient
 
-        def self.options_or_their_defaults: (
+        private def self.options_or_their_defaults: (
           Metadata? metadata,
           ConnectionOptions? connection,
           TelemetryOptions? telemetry,
           ClientHooks? hooks
         ) -> [Metadata, ConnectionOptions, TelemetryOptions, ClientHooks]
 
-        def self.client_over: (
+        private def self.client_over: (
           Connection::_Connection connection,
           Telemetry::_ClientTelemetry telemetry,
           ConnectionOptions connection_options,
@@ -299,14 +295,14 @@ module ConfigDirector
           hooks: ClientHooks
         ) -> ConfigDirectorClient
 
-        def self.client_over_an_in_memory_connection: (
+        private def self.client_over_an_in_memory_connection: (
           Connection::InMemoryConnection connection,
           Telemetry::TestClientTelemetry telemetry,
           seconds timeout,
           _Logger & Object logger
         ) -> ConfigDirectorClient
 
-        def self.warn_of_a_polling_interval_below_the_minimum: (
+        private def self.warn_of_a_polling_interval_below_the_minimum: (
           ConnectionOptions connection,
           _Logger & Object logger
         ) -> void
@@ -379,6 +375,7 @@ module ConfigDirector
 
       class ClientConnection
         CONNECTION_AT_A_LATER_INIT_BY_MODE: Hash[String, Symbol]
+        WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE: Hash[String, String]
 
         @connection: Connection::_Connection
         @telemetry: Telemetry::_ClientTelemetry
@@ -401,6 +398,8 @@ module ConfigDirector
         def open: () -> Symbol?
 
         def close: () -> void
+
+        def warn_that_no_values_arrived_within: (seconds timeout) -> void
 
         def restart_in_a_forked_process: (Symbol forked_through) -> void
 

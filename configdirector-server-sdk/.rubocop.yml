@@ -3,8 +3,7 @@ AllCops:
   SuggestExtensions: false
 
 Lint/InheritException:
-  Exclude:
-    - lib/configdirector/internal/stoppable_thread.rb
+  Enabled: false
 
 Metrics/BlockLength:
   AllowedMethods:
@@ -15,13 +14,13 @@ Metrics/ParameterLists:
   CountKeywordArgs: false
 
 Naming/FileName:
-  Exclude:
-    - lib/configdirector-server-sdk.rb
+  Regex: '\A(?:[\d[:lower:]_.?!]+|configdirector-server-sdk)\z'
 
 Style/Documentation:
-  Exclude:
-    - lib/configdirector/internal/**/*
-    - spec/**/*
+  Include:
+    - lib/configdirector.rb
+    - lib/configdirector/*.rb
+    - lib/configdirector/testing/**/*.rb
 
 Style/SymbolProc:
   AllowedMethods:

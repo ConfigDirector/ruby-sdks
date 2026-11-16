@@ -17,9 +17,9 @@ module ConfigDirector
           @last_event_id = ""
         end
 
-        def keep_open(report_unrecoverable_error, deliver_event_data)
+        def keep_open(report_unrecoverable_error:, &deliver_event_data)
           loop do
-            stream_end = stream_until_it_ends(deliver_event_data)
+            stream_end = stream_until_it_ends(&deliver_event_data)
             @last_event_id = stream_end.last_event_id
             case stream_end.what_follows
             when :no_reconnection then return
@@ -32,10 +32,10 @@ module ConfigDirector
 
         private
 
-        def stream_until_it_ends(deliver_event_data)
+        def stream_until_it_ends(&deliver_event_data)
           connection = StreamConnection.new(
             endpoint: @endpoint, timing: @timing, last_event_id: @last_event_id
-          ) { |event_data| deliver(event_data, deliver_event_data) }
+          ) { |event_data| deliver(event_data, &deliver_event_data) }
           stream_end = connection.stream_until_it_ends { take_note_of_the_open_stream_of(connection) }
           @log.debug { "Disconnected: #{stream_end.cause}" }
           stream_end
@@ -48,9 +48,9 @@ module ConfigDirector
           @log.debug { "Connected" }
         end
 
-        def deliver(event_data, deliver_event_data)
+        def deliver(event_data)
           begin
-            deliver_event_data.call(event_data)
+            yield event_data
           rescue StandardError => e
             @log.error("Error parsing and dispatching config data update: #{e.class}: #{e.message.inspect}")
           end

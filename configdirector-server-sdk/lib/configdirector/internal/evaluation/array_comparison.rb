@@ -15,10 +15,7 @@ module ConfigDirector
         end
 
         def self.contains_any?(elements, targets)
-          elements.any? do |element|
-            text = ScalarText.of(element)
-            !text.nil? && targets.include?(text)
-          end
+          elements.filter_map { |element| ScalarText.of(element) }.intersect?(targets)
         end
 
         private_class_method :contains_any?

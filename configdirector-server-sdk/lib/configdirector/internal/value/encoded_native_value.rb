@@ -27,10 +27,8 @@ module ConfigDirector
         end
 
         def self.utf8_text_of(value, config_key)
-          utf8_text = Utf8Text.of(value)
-          return utf8_text unless utf8_text.nil?
-
-          raise UnservableValue, "Invalid value for '#{config_key}': the String is not valid UTF-8 text."
+          Utf8Text.of(value) ||
+            raise(UnservableValue, "Invalid value for '#{config_key}': the String is not valid UTF-8 text.")
         end
 
         def self.unservable_because_of_the_class_of(value, config_key)

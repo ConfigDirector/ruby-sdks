@@ -2,7 +2,7 @@
 
 require_relative "configdirector/version"
 require_relative "configdirector/errors"
-require_relative "configdirector/internal/compared_by_value"
+require_relative "configdirector/internal"
 require_relative "configdirector/internal/unchangeable_copy"
 require_relative "configdirector/metadata"
 require_relative "configdirector/connection_options"

@@ -6,4 +6,10 @@ RSpec.describe "configdirector-server-sdk.gemspec" do
 
     expect(specification.files).to include("sig/configdirector.rbs", "lib/configdirector-server-sdk.rb")
   end
+
+  it "packages the YARD options that keep the internal API out of the generated documentation" do
+    specification = Gem::Specification.load(File.expand_path("../configdirector-server-sdk.gemspec", __dir__))
+
+    expect(specification.files).to include(".yardopts")
+  end
 end

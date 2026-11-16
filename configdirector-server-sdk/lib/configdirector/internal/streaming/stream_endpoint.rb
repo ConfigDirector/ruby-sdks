@@ -16,16 +16,16 @@ module ConfigDirector
         end
 
         def http_session(timing)
-          http_session = Connection::HttpSession.to(@stream_uri)
-          http_session.open_timeout = timing.seconds_to_open_a_stream
-          http_session.read_timeout = timing.seconds_of_silence_of_a_dropped_stream
-          http_session
+          Connection::HttpSession.to(@stream_uri).tap do |http_session|
+            http_session.open_timeout = timing.seconds_to_open_a_stream
+            http_session.read_timeout = timing.seconds_of_silence_of_a_dropped_stream
+          end
         end
 
         def stream_request(session_id:, last_event_id:)
           request = Connection::JsonPostRequest.to(
             @stream_uri, @sdk_identity,
-            serverSdkKey: @server_sdk_key, sessionId: session_id, metaContext: @meta_context
+            { serverSdkKey: @server_sdk_key, sessionId: session_id, metaContext: @meta_context }
           )
           request["Accept"] = "text/event-stream"
           request["Last-Event-ID"] = last_event_id unless last_event_id.empty?
@@ -34,7 +34,7 @@ module ConfigDirector
 
         def heartbeat_request(session_id:)
           Connection::JsonPostRequest.to(
-            @heartbeat_uri, @sdk_identity, serverSdkKey: @server_sdk_key, sessionId: session_id
+            @heartbeat_uri, @sdk_identity, { serverSdkKey: @server_sdk_key, sessionId: session_id }
           )
         end
       end

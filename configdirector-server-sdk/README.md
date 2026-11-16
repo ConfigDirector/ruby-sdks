@@ -6,6 +6,41 @@ Ruby server SDK for [ConfigDirector](https://www.configdirector.com), remote con
 
 The SDK requires Ruby 3.3 or later. It is in development and has not been released yet.
 
+## Install
+
+```bash
+bundle add configdirector-server-sdk
+```
+
+## Retrieve a value
+
+```ruby
+require "configdirector"
+
+# The server SDK key is a secret. Do not commit it to your source code.
+client = ConfigDirector.create_client(ENV.fetch("CONFIGDIRECTOR_SERVER_KEY"))
+client.init
+
+new_checkout = client.get_value("new-checkout", false)
+```
+
+Full details are in the [official documentation](https://docs.configdirector.com/sdks/server/ruby).
+
+## Servers that fork
+
+Each Ruby process holds its own connection to ConfigDirector, on a thread of the SDK, so an application on 2 hosts with
+4 Puma workers each holds 8 connections. Puma in cluster mode, Passenger's smart spawning and Unicorn with `preload_app
+true` load the application once and then fork their workers from that process. A client that was initialized before the
+fork restarts by itself in each worker: it serves the values it had at the fork at once, opens its own connection and
+keeps calling its handlers and watches, with nothing for your application to call.
+
+Create the client the first time a process uses it rather than while the application boots, as the [Rails
+sample](https://github.com/ConfigDirector/ruby-sdks/tree/main/samples/configdirector-server-sdk/rails) does. Then only a
+process that reads a config connects: the Puma master and an image build that has no server SDK key never do, and
+neither does a `bin/rails console` session or a Rake task until it reads one. The first request in each worker waits for
+the first values, up to the connection timeout. The [documentation](https://docs.configdirector.com/sdks/server/ruby)
+also says what an application that forks for each background job should do.
+
 ## Test your code
 
 `configdirector/testing` creates a **test client**: the SDK's real client over an in-memory connection that your test
@@ -159,6 +194,25 @@ end
   takes none of the values the test client's controls store.
 - The SDK keeps no reference to a test client's client, so one that is never closed can be garbage collected. In a
   forked process it keeps serving its values, with nothing to restart.
+
+## Documentation
+
+Refer to the [official documentation for the Ruby SDK](https://docs.configdirector.com/sdks/server/ruby).
+
+There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
+
+## Sample apps
+
+[`samples/configdirector-server-sdk/`](https://github.com/ConfigDirector/ruby-sdks/tree/main/samples/configdirector-server-sdk)
+holds small, runnable applications built on this SDK. Start with
+[`rails`](https://github.com/ConfigDirector/ruby-sdks/tree/main/samples/configdirector-server-sdk/rails), a Rails
+application served by Puma in cluster mode:
+
+```bash
+cd samples/configdirector-server-sdk/rails
+bundle install
+bundle exec puma
+```
 
 ## OpenFeature
 

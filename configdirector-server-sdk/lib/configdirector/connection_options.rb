@@ -1,30 +1,25 @@
 # frozen_string_literal: true
 
 module ConfigDirector
-  # How a client connects to ConfigDirector. Connection options cannot be changed once built, and compare by
-  # value.
+  ConnectionOptions = Data.define(:mode, :polling_interval, :timeout, :url, :file, :values)
+
+  # How a client connects to ConfigDirector. Connection options cannot be changed once built, compare by value,
+  # and +with+ builds a copy with other values.
+  #
+  # @!attribute [r] mode
+  #   @return [String] the connection mode: +"streaming"+, +"polling"+ or +"offline"+
+  # @!attribute [r] polling_interval
+  #   @return [Integer, Float] how often a polling client asks for new values, in seconds
+  # @!attribute [r] timeout
+  #   @return [Integer, Float] how long {ConfigDirectorClient#init} waits for the first values, in seconds. In
+  #     polling mode it is also how long each request for values may take. It has no effect in offline mode.
+  # @!attribute [r] url
+  #   @return [String] the base URL of the ConfigDirector SDK server
+  # @!attribute [r] file
+  #   @return [String, Pathname, nil] the path of a JSON file holding the values an offline client serves
+  # @!attribute [r] values
+  #   @return [Hash, nil] the values an offline client serves, keyed by config key, as they were given
   class ConnectionOptions
-    include Internal::ComparedByValue
-
-    # @return [String] the connection mode: +"streaming"+, +"polling"+ or +"offline"+
-    attr_reader :mode
-
-    # @return [Integer, Float] how often a polling client asks for new values, in seconds
-    attr_reader :polling_interval
-
-    # @return [Integer, Float] how long {ConfigDirectorClient#init} waits for the first values, in seconds. In
-    #   polling mode it is also how long each request for values may take. It has no effect in offline mode.
-    attr_reader :timeout
-
-    # @return [String] the base URL of the ConfigDirector SDK server
-    attr_reader :url
-
-    # @return [String, Pathname, nil] the path of a JSON file holding the values an offline client serves
-    attr_reader :file
-
-    # @return [Hash, nil] the values an offline client serves, keyed by config key, as they were given
-    attr_reader :values
-
     # @param mode [String] the connection mode. With +"streaming"+, the default, the connection stays open
     #   and receives a new value as soon as it changes in ConfigDirector. With +"polling"+, the client asks
     #   for new values every +polling_interval+. With +"offline"+, the client never connects to
@@ -55,13 +50,11 @@ module ConfigDirector
       file: nil,
       values: nil
     )
-      @mode = Internal::UnchangeableCopy.of(mode)
-      @polling_interval = polling_interval
-      @timeout = timeout
-      @url = Internal::UnchangeableCopy.of(url)
-      @file = Internal::UnchangeableCopy.of(file)
-      @values = Internal::UnchangeableCopy.of(values)
-      freeze
+      super(
+        mode: Internal::UnchangeableCopy.of(mode), polling_interval: polling_interval, timeout: timeout,
+        url: Internal::UnchangeableCopy.of(url), file: Internal::UnchangeableCopy.of(file),
+        values: Internal::UnchangeableCopy.of(values)
+      )
     end
   end
 end

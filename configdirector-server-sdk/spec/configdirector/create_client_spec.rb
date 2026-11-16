@@ -111,6 +111,23 @@ RSpec.describe "Creating a client" do
     expect(ConfigDirector::ConnectionOptions.new(mode: "polling")).not_to eq(ConfigDirector::ConnectionOptions.new)
   end
 
+  it "builds a copy of connection options with the values given to with" do
+    connection = ConfigDirector::ConnectionOptions.new(mode: "polling", polling_interval: 120)
+
+    expect(connection.with(timeout: 5))
+      .to eq(ConfigDirector::ConnectionOptions.new(mode: "polling", polling_interval: 120, timeout: 5))
+  end
+
+  it "keeps the values given to with when the Hash they came from changes" do
+    values = { "sizes" => ["small"] }
+    connection = ConfigDirector::ConnectionOptions.new(mode: "offline").with(values: values)
+
+    values.fetch("sizes") << "large"
+
+    expect(connection.values).to eq({ "sizes" => ["small"] })
+    expect(connection.values).to be_frozen
+  end
+
   it "compares option objects by their values" do
     expect(ConfigDirector::Metadata.new(app_name: "storefront"))
       .to eq(ConfigDirector::Metadata.new(app_name: "storefront"))

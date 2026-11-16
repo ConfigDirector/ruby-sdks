@@ -21,14 +21,14 @@ module ConfigDirector
         end
 
         def open(report_unrecoverable_error:, &deliver_payload)
-          open_a_stream(report_unrecoverable_error, deliver_payload)
+          open_a_stream(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload)
 
           :values_awaited
         end
 
         def restart_in_a_forked_process(report_unrecoverable_error:, &deliver_payload)
           @transport = transport_of_a_new_session
-          open_a_stream(report_unrecoverable_error, deliver_payload)
+          open_a_stream(report_unrecoverable_error: report_unrecoverable_error, &deliver_payload)
         end
 
         def close
@@ -41,10 +41,10 @@ module ConfigDirector
           StreamingTransport.new(endpoint: @endpoint, logger: @logger)
         end
 
-        def open_a_stream(report_unrecoverable_error, deliver_payload)
+        def open_a_stream(report_unrecoverable_error:)
           @transport.open(report_unrecoverable_error: report_unrecoverable_error) do |event_data|
             payload = payload_or_nothing_in(event_data)
-            deliver_payload.call(payload) unless payload.nil?
+            yield payload unless payload.nil?
           end
         end
 

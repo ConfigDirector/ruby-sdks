@@ -3,7 +3,7 @@
 module ConfigDirector
   module Internal
     module Connection
-      class NotAServerSdkPayload < StandardError; end
+      class NotAServerSdkPayload < ConfigDirectorError; end
     end
   end
 end

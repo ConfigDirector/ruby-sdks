@@ -27,10 +27,7 @@ module ConfigDirector
         end
 
         def self.utf8_text_at(position, text)
-          utf8_text = Utf8Text.of(text)
-          raise position.unservable_because("the String is not valid UTF-8 text.") if utf8_text.nil?
-
-          utf8_text
+          Utf8Text.of(text) || raise(position.unservable_because("the String is not valid UTF-8 text."))
         end
 
         def self.finite_float_at(position, float)

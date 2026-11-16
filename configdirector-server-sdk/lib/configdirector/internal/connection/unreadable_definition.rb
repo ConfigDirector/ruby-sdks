@@ -3,7 +3,7 @@
 module ConfigDirector
   module Internal
     module Connection
-      class UnreadableDefinition < StandardError; end
+      class UnreadableDefinition < ConfigDirectorError; end
     end
   end
 end

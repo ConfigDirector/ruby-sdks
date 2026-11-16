@@ -3,7 +3,7 @@
 module ConfigDirector
   module Internal
     module Value
-      class UnservableValue < StandardError; end
+      class UnservableValue < ConfigDirectorError; end
     end
   end
 end

@@ -16,17 +16,6 @@ module ConfigDirector
   # its handlers and watches keep being called, on a thread of the SDK. It reports what the forked process
   # evaluates and tracks from there, and what was evaluated and tracked before the fork from the parent.
   class ConfigDirectorClient
-    WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE = {
-      "streaming" => "The client will continue to retry since there were no fatal errors detected. " \
-                     "Configs will return the in-code default value until the connection succeeds.",
-      "polling" => "Since the client was configured without streaming, configs may not update and always " \
-                   "return the in-code default value.",
-      "offline" => "The offline values were not delivered, so configs return the in-code default value.",
-      "test" => "Configs return the in-code default value until values arrive."
-    }.freeze
-
-    private_constant :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
-
     # @api private
     def initialize(connection:, telemetry:, mode:, timeout:, metadata:, logger:, hooks:)
       @mode = mode
@@ -36,7 +25,7 @@ module ConfigDirector
       @serving_state = Internal::Client::ServingState.new(metadata)
       @event_handlers = Internal::Client::EventHandlers.new(hooks, @log)
       @watches = Internal::Client::Watches.new(@log)
-      @config_reader = Internal::Client::ConfigReader.new(@serving_state, @event_handlers, telemetry, @log)
+      @config_reader = config_reader_over(telemetry)
       @event_tracking = Internal::Client::EventTracking.new(mode: mode, telemetry: telemetry, log: @log)
       @client_connection = client_connection_over(connection, telemetry)
     end
@@ -73,8 +62,7 @@ module ConfigDirector
 
       case connection_opening
       when :first_attempt_failed then nil
-      when :values_awaited, :opened_before
-        warn_that_no_values_arrived_in_time if @serving_state.timed_out_waiting_for_the_first_values?(give_up_at)
+      when :values_awaited, :opened_before then warn_unless_the_first_values_arrive_by(give_up_at)
       end
     end
 
@@ -100,7 +88,7 @@ module ConfigDirector
     # @raise [ConfigDirectorValidationError] when the in-code default value is +nil+ or of any other class,
     #   or when the context is not a {Context}
     def get_value(config_key, default_value, context = nil)
-      evaluate(config_key, default_value, context).value
+      @config_reader.evaluation_of(config_key, default_value, context).value
     end
 
     # Evaluates a config as {#get_value} does and returns the evaluation: the value, the reason it was
@@ -115,7 +103,7 @@ module ConfigDirector
     # @raise [ConfigDirectorValidationError] when the in-code default value is +nil+ or of any other class,
     #   or when the context is not a {Context}
     def evaluate(config_key, default_value, context = nil)
-      @config_reader.read(@config_reader.config_read_of(config_key, default_value, context))
+      @config_reader.evaluation_of(config_key, default_value, context)
     end
 
     # Returns what every config serves to the given context, keyed by config key, or only the configs listed
@@ -213,7 +201,7 @@ module ConfigDirector
     #   +null+.
     # @return [void]
     def track(event_name, context = nil, value: nil, details: nil)
-      @event_tracking.track(event_name, context, value, details) unless closed?
+      @event_tracking.track(event_name, context, value: value, details: details) unless closed?
     end
 
     # Registers a handler for one of the events the client emits. A handler registered twice runs twice.
@@ -291,6 +279,13 @@ module ConfigDirector
       @serving_state.closed?
     end
 
+    # @return [String] the client's connection mode and whether it is ready and closed, such as
+    #   <tt>#<ConfigDirector::ConfigDirectorClient mode="streaming" ready=true closed=false></tt>. The mode of the
+    #   client of a {Testing::TestClient} is +"test"+. It never shows the server SDK key.
+    def inspect
+      "#<#{self.class.name} mode=#{@mode.inspect} ready=#{ready?} closed=#{closed?}>"
+    end
+
     private
 
     def raise_if_closed
@@ -298,6 +293,18 @@ module ConfigDirector
 
       raise ConfigDirectorValidationError,
             "This client has been closed and can no longer be used. Create a new one instead."
+    end
+
+    def warn_unless_the_first_values_arrive_by(give_up_at)
+      return unless @serving_state.timed_out_waiting_for_the_first_values?(give_up_at)
+
+      @client_connection.warn_that_no_values_arrived_within(@timeout)
+    end
+
+    def config_reader_over(telemetry)
+      Internal::Client::ConfigReader.new(
+        serving_state: @serving_state, event_handlers: @event_handlers, telemetry: telemetry, log: @log
+      )
     end
 
     def client_connection_over(connection, telemetry)
@@ -309,13 +316,6 @@ module ConfigDirector
       Internal::Client::ClientConnection.new(
         connection: connection, telemetry: telemetry, mode: @mode, serving_state: @serving_state, intake: intake,
         log: @log
-      )
-    end
-
-    def warn_that_no_values_arrived_in_time
-      @log.warn(
-        "Timed out waiting for initialization after #{format("%g", @timeout)}s. " \
-        "#{WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE.fetch(@mode)}"
       )
     end
   end

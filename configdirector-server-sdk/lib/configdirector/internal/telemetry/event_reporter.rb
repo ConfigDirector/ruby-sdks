@@ -35,7 +35,7 @@ module ConfigDirector
           @log = Logging::ClientLog.new(logger, component: "EventReporter")
         end
 
-        def what_follows_a_report_of(report)
+        def what_follows_delivering(report)
           answer = @endpoint.answer_to(report)
           LOG_BY_ANSWER_KIND.fetch(answer.kind).call(@log, answer)
 

@@ -1,0 +1,13 @@
+module ReadsDeclaredAsText
+  def self.new_checkout_enabled: (ConfigDirector::ConfigDirectorClient client) -> String
+
+  def self.checkout_settings: (ConfigDirector::ConfigDirectorClient client) -> String
+
+  def self.checkout_settings_with_symbol_keys: (ConfigDirector::ConfigDirectorClient client) -> String
+
+  def self.new_checkout_evaluated: (ConfigDirector::ConfigDirectorClient client) -> String
+
+  def self.watch_checkout_settings: (ConfigDirector::ConfigDirectorClient client) -> ConfigDirector::Subscription
+
+  def self.print_text: (String text) -> void
+end

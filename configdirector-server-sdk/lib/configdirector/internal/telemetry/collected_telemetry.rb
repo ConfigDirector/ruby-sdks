@@ -18,7 +18,7 @@ module ConfigDirector
           discard_the_queued_events
         end
 
-        def add(evaluated_read)
+        def add_evaluation(evaluated_read)
           leave_to_the_parent_process_what_it_collected
           reported_context = ReportedContext.of(evaluated_read.evaluation.context)
           capture(reported_context) unless reported_context.nil?

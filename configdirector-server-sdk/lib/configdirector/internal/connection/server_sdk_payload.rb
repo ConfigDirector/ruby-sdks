@@ -6,6 +6,8 @@ module ConfigDirector
       ServerSdkPayload = Data.define(:delta, :configs, :segments, :unreadable_configs, :unreadable_segments)
 
       class ServerSdkPayload
+        alias delta? delta
+
         def self.without_definitions
           of_definitions({})
         end
@@ -19,11 +21,11 @@ module ConfigDirector
         end
 
         def configs_held_after(held_configs)
-          delta ? held_configs.except(*unreadable_configs.keys).merge(configs) : configs
+          delta? ? held_configs.except(*unreadable_configs.keys).merge(configs) : configs
         end
 
         def segments_held_after(held_segments)
-          delta ? held_segments.except(*unreadable_segments.keys).merge(segments) : segments
+          delta? ? held_segments.except(*unreadable_segments.keys).merge(segments) : segments
         end
 
         def segment_ids
