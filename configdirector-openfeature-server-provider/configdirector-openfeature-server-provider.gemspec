@@ -11,6 +11,7 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.4"
   spec.metadata = {
+    "documentation_uri" => "https://docs.configdirector.com/sdks/openfeature/ruby",
     "source_code_uri" =>
       "https://github.com/ConfigDirector/ruby-sdks/tree/main/configdirector-openfeature-server-provider",
     "changelog_uri" =>

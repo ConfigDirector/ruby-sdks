@@ -2,7 +2,7 @@
 
 ## Layout
 
-This repository publishes two gems, each from a directory named after it:
+This repository publishes three gems, each from a directory named after it:
 
 - [configdirector-server-sdk](configdirector-server-sdk/), the server SDK, required as `configdirector`, with
   the module `ConfigDirector`. At runtime it depends on Ruby's standard library only. Its gemspec names two of
@@ -11,10 +11,16 @@ This repository publishes two gems, each from a directory named after it:
   line to 1 MiB, where the `net/http` that Ruby 3.3 to 4.0 ship reads them into memory without a limit.
 - [configdirector-openfeature-server-provider](configdirector-openfeature-server-provider/), the OpenFeature
   provider built on it, required as `configdirector/openfeature`, with the module `ConfigDirector::OpenFeature`.
+- [configdirector](configdirector/), which holds the bare name on RubyGems so that nobody else can publish under
+  it. It has no code: it depends on the SDK in any `0.x` version from `0.1.0`, so `gem install configdirector`
+  installs the SDK, and `require "configdirector"` loads the SDK's own entry point. It has a gemspec, a README, a
+  changelog and a license, and nothing to lint or test, so of the Makefile targets only `build`, `release-check`
+  and `test-release` know it. It must never ship a `lib/configdirector.rb`, which would be loaded in place of the
+  SDK's.
 
-Each gem has its own gemspec, `Gemfile`, `Gemfile.lock` and development tools, because the two support
-different Ruby versions: the SDK supports Ruby 3.3 and later, and the provider 3.4 and later, which
-`openfeature-sdk` requires. Each has its own version, changelog, and release.
+The SDK and the provider each have their own gemspec, `Gemfile`, `Gemfile.lock` and development tools, because the
+two support different Ruby versions: the SDK supports Ruby 3.3 and later, and the provider 3.4 and later, which
+`openfeature-sdk` requires. Each of the three gems has its own version, changelog, and release.
 
 Each gem also ships a file named after the gem, such as `lib/configdirector-server-sdk.rb`, that requires its
 entry point. `Bundler.require`, which a Rails application calls at startup, requires a gem by its gem name, so an
@@ -55,6 +61,7 @@ macOS, `brew install ruby` installs a patched Ruby 4.0; Homebrew does not put it
 make install       # bundle install, every gem and sample
 make hooks         # pre-push hook that runs make check-all
 make check         # lint and test: the fast loop
+make test-release  # the release scripts, against throwaway repositories and a stand-in for RubyGems
 make samples-local # the samples' suites against this working tree
 make check-floor   # lint and test on each gem's oldest Ruby, in Docker
 make check-all     # everything CI runs
@@ -142,7 +149,8 @@ opens the polling transport.
 `make verify-ruby` prints the version of the Ruby that runs it and fails when that release lacks the fixes above;
 every CI job runs it first. `make verify-lock` fails when a `Gemfile.lock` no longer matches its `Gemfile` and
 gemspec. `make build` builds each gem into `dist/` with `gem build --strict`, which fails on any warning about the
-gemspec. `make audit` runs `bundle-audit` against each lock with the latest advisory database.
+gemspec, and then checks what each built gem holds: see [What a release publishes](#what-a-release-publishes).
+`make audit` runs `bundle-audit` against each lock with the latest advisory database.
 
 `make test-lowest` runs the suites with each runtime dependency of the gemspec at the lowest version the gemspec
 allows, such as `logger` 1.6 for `~> 1.6`, so they fail when the code needs something newer than that floor.
@@ -154,7 +162,7 @@ newest release of that line, on a copy of this working tree.
 
 CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu, on Ruby 4.0 on macOS, and on Ruby 3.3 and 4.0 on
 Windows, the provider's suite on Ruby 3.4 and 4.0 on Ubuntu, the samples' suites on Ruby 3.3 and 4.0 on Ubuntu,
-and `make test-lowest`, the lint, build and audit on Ruby 4.0. Locally, `make check-all` covers your own Ruby and,
+and `make test-lowest`, the lint, `make test-release`, the build and the audit on Ruby 4.0. Locally, `make check-all` covers your own Ruby and,
 through `make check-floor`, each gem's oldest Ruby line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
@@ -184,20 +192,208 @@ tables.
 
 ## Releasing
 
-Each gem is released on its own. Its version lives in exactly one place, its `VERSION` constant, which the gemspec
-reads:
+Each gem is released on its own, by a workflow of its own, and the steps are the same for all three. A gem's
+version lives in exactly one place:
 
-| Gem | Version | Changelog |
-|---|---|---|
-| configdirector-server-sdk | [`version.rb`](configdirector-server-sdk/lib/configdirector/version.rb) | [CHANGELOG.md](configdirector-server-sdk/CHANGELOG.md) |
-| configdirector-openfeature-server-provider | [`version.rb`](configdirector-openfeature-server-provider/lib/configdirector/openfeature/version.rb) | [CHANGELOG.md](configdirector-openfeature-server-provider/CHANGELOG.md) |
+| Gem | Version | Changelog | Workflow |
+|---|---|---|---|
+| configdirector-server-sdk | `VERSION` in [`version.rb`](configdirector-server-sdk/lib/configdirector/version.rb) | [CHANGELOG.md](configdirector-server-sdk/CHANGELOG.md) | [Release configdirector-server-sdk](.github/workflows/release-configdirector-server-sdk.yml) |
+| configdirector-openfeature-server-provider | `VERSION` in [`version.rb`](configdirector-openfeature-server-provider/lib/configdirector/openfeature/version.rb) | [CHANGELOG.md](configdirector-openfeature-server-provider/CHANGELOG.md) | [Release configdirector-openfeature-server-provider](.github/workflows/release-configdirector-openfeature-server-provider.yml) |
+| configdirector | `spec.version` in [`configdirector.gemspec`](configdirector/configdirector.gemspec) | [CHANGELOG.md](configdirector/CHANGELOG.md) | [Release configdirector](.github/workflows/release-configdirector.yml) |
 
-Until its first release a gem's `VERSION` is `0.1.0-dev`. RubyGems writes the dash as `.pre.`, so the gem is
-built as `0.1.0.pre.dev`, while the SDK will report `VERSION` itself. A development version has to sort above `0`:
+Until its first release a gem's version is `0.1.0-dev`. RubyGems writes the dash as `.pre.`, so the gem is
+built as `0.1.0.pre.dev`, while the SDK reports `VERSION` itself. A development version has to sort above `0`:
 Bundler matches a gem named in a `Gemfile` without a version against `>= 0`, and RubyGems sorts `0.0.0.pre.dev`
 below it, so a `Gemfile` that names a gem at `0.0.0-dev` by its path does not resolve.
 
-The release workflow and the steps to run it are not written yet; this section will describe them once they are.
+1. In the gem's changelog, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh, empty
+   `## [Unreleased]` above it.
+2. Set the gem's version to `X.Y.Z`, run `make install`, which writes the new version into the lock files that
+   name the gem, and merge all of it to `main`.
+3. Run the gem's release workflow against `main`; it refuses any other branch. It is manual
+   (`workflow_dispatch`) by design and releases whatever version `main` declares. It reads the version from the
+   gemspec and refuses to go on when the version is not `X.Y.Z`, when the tag `<gem>-vX.Y.Z` already exists, when
+   RubyGems already has that version, or when the changelog has no section for it (an empty section counts as
+   none). It then runs `make release-check` and `make check-all`, builds the gem on a fresh checkout and checks
+   what it holds, pushes it to RubyGems, tags the released commit `<gem>-vX.Y.Z`, for example
+   `configdirector-server-sdk-v0.1.0`, and creates a GitHub Release with the changelog section as its notes.
+
+With **dry_run** checked, the workflow runs every check, has RubyGems accept it as the gem's trusted publisher, and
+stops there: it pushes nothing and creates no tag. Run it that way before the first release of a gem, and after
+any change to the publish job, the `release` environment or the trusted publisher on RubyGems. A dry run needs the
+version and the changelog section of step 1 and 2 on `main`, because it starts with the same refusals.
+
+A version is `X.Y.Z`. The workflow releases no prerelease, and RubyGems never accepts a version twice, a yanked
+one included: to ship a fix, raise the version, add a changelog section and release again.
+
+Release the SDK before a gem that needs it. The provider and `configdirector` each name the SDK versions they work
+with in their gemspec, and `make release-check GEM=<gem>` installs the built gem into an empty gem home with its
+dependencies from RubyGems, then loads it by the name `Bundler.require` uses. So their workflows stop before
+publishing while RubyGems does not serve an SDK version in that range. `configdirector` needs a release of its
+own only when its range of SDK versions changes: at the SDK's `1.0.0`.
+
+The push to RubyGems is the release. When a step before it fails, nothing is published: fix the cause and run the
+workflow again. When the tag or the GitHub Release fails after the push, the version is out and the workflow
+refuses to release it again, so finish by hand what the failed run left. For the server SDK, with the commit the
+run released, which its page on GitHub names, and the version's changelog section saved to a file:
+
+```sh
+git tag -a configdirector-server-sdk-vX.Y.Z <released commit> -m 'configdirector-server-sdk X.Y.Z'
+git push origin configdirector-server-sdk-vX.Y.Z
+gh release create configdirector-server-sdk-vX.Y.Z --repo ConfigDirector/ruby-sdks --verify-tag \
+  --title configdirector-server-sdk-vX.Y.Z --notes-file <file with the changelog section>
+```
+
+The three workflow files are the same file with another gem's name, and they share no reusable workflow: RubyGems
+trusts a workflow file to publish a gem, so each file can publish its own gem and no other. To change the release
+steps, edit [release-configdirector-server-sdk.yml](.github/workflows/release-configdirector-server-sdk.yml) and
+write the other two again from it:
+
+```sh
+cd .github/workflows
+for gem in configdirector-openfeature-server-provider configdirector; do
+  sed "s/configdirector-server-sdk/$gem/g" release-configdirector-server-sdk.yml > "release-$gem.yml"
+done
+```
+
+The refusals live in [release-preflight.sh](.github/scripts/release-preflight.sh), the check of a built gem in
+[verify-built-gem.rb](tools/verify-built-gem.rb) and the push in [publish-gem.rb](.github/scripts/publish-gem.rb).
+`make test-release` runs all three one scenario at a time, with throwaway git repositories and a local server
+standing in for RubyGems and for GitHub, and fails when the three workflow files differ by more than the gem's
+name.
+
+### What a release publishes
+
+A gem ships what an application needs and nothing else: `lib/**/*.rb`, `sig/**/*.rbs`, `.yardopts`, `CHANGELOG.md`,
+`LICENSE` and `README.md`, which is what the `files` of each gemspec list. `make build` fails on a built gem that
+holds anything else, such as a spec, a sample or a `Gemfile`; that lacks `README.md`, `CHANGELOG.md` or `LICENSE`;
+that holds Ruby code without its signatures; or that does not set `rubygems_mfa_required`, which makes RubyGems
+require multi-factor authentication of every owner who pushes or yanks the gem with their own account. So a new
+file that an application needs goes into the gemspec and into [verify-built-gem.rb](tools/verify-built-gem.rb).
+The `LICENSE` of each gem is a copy of the one at the root, because a gem packs only files of its own directory.
+
+### How the workflow signs in to RubyGems
+
+No RubyGems credential is stored in GitHub. RubyGems lets a gem name a **trusted publisher**: a GitHub repository,
+a workflow file in it and an environment. The publish job of each workflow is the only job in the `release`
+environment and the only one that may ask GitHub for an identity token. `publish-gem.rb` hands that token to
+RubyGems, which checks that it comes from the trusted publisher and answers with a key that can push that gem
+alone and expires within minutes. The key stays inside the script.
+
+Renaming a release workflow file or the `release` environment means changing the gem's trusted publisher on
+RubyGems first, on the gem's page under **Trusted publishers**.
+
+The script exchanges the token itself rather than through `rubygems/configure-rubygems-credentials`. Since
+2026-10-30 RubyGems lets a workflow create a new gem only when the exchange names the account that will own it,
+and that action (v2.1.0) has no way to name one. The script names the account on every exchange, from the
+`RUBYGEMS_OWNER_ID` variable of the `release` environment, so the first push of a gem and every later one take
+the same path.
+
+### Setting up RubyGems and GitHub
+
+Steps 1 to 3 are done once, by the person whose RubyGems account owns the gems and who administers this
+repository. Step 4 is done once per gem, on the day of its first release. Each step ends with a command that
+changes nothing and proves it.
+
+**1. Turn on multi-factor authentication for the RubyGems account that owns the gems.** Sign in to
+<https://rubygems.org> as that account and open <https://rubygems.org/settings/edit>, the **Edit settings** page.
+In its **Multi-factor authentication** section:
+
+| On the page | What to do | What it is for, and what goes wrong otherwise |
+|---|---|---|
+| **Security device**, or **Authentication app** with **Register a new device** | Register a device, when the account has none | An account without a device has no multi-factor authentication at all. |
+| **MFA Level** | Choose **UI and API (Recommended)** and click **Update** | Every gem here sets `rubygems_mfa_required`, which makes RubyGems require multi-factor authentication of the gem's owners. The release workflow is not asked for a code, so it publishes either way; what fails on an account without it is a `gem push` made by hand with the account's own key, which RubyGems refuses with `Rubygem requires owners to enable MFA. You must enable MFA before pushing new version.` |
+
+Prove it, with the account's username in `HANDLE`. curl asks for the account's password and sends it to RubyGems
+alone. The answer has to hold `"mfa":"ui_and_api"`, and its `id` is the account ID that step 2 needs.
+
+```sh
+HANDLE=<username>
+curl --silent --user "$HANDLE" https://rubygems.org/api/v1/profile/me.json
+```
+
+**2. Create the `release` environment in this repository.** On GitHub, open this repository's **Settings**, click
+**Environments** in the left sidebar, then **New environment**:
+
+| On the page | Value | What it is for, and what goes wrong otherwise |
+|---|---|---|
+| **Name** | `release`, then **Configure environment** | The environment the publish job runs in and RubyGems trusts. Under another name, GitHub creates an empty `release` environment by itself when the workflow first runs, so the job starts without the variable below and stops with `RUBYGEMS_OWNER_ID is ''`. |
+| **Deployment branches and tags** | **Selected branches and tags**, with one rule for the branch `main` | Only a run against `main` may enter the environment. With **No restriction**, a workflow file changed on any branch of this repository could publish a gem. With a rule that does not match `main`, GitHub refuses the publish job before it starts. |
+| **Environment variables**, **Add variable** | **Name** `RUBYGEMS_OWNER_ID`, **Value** the `id` that step 1 printed | Tells RubyGems which account will own a gem this workflow creates. A handle or an empty value stops the publish job with `RUBYGEMS_OWNER_ID is '...'` before it asks RubyGems for anything, and the ID of another account makes the first push of a gem fail with `You are not allowed to push this gem.` |
+
+Prove it: the first command has to print `release`, the second `main`, and the third `RUBYGEMS_OWNER_ID` followed
+by the ID.
+
+```sh
+gh api repos/ConfigDirector/ruby-sdks/environments --jq '.environments[].name'
+gh api repos/ConfigDirector/ruby-sdks/environments/release/deployment-branch-policies --jq '.branch_policies[].name'
+gh api repos/ConfigDirector/ruby-sdks/environments/release/variables --jq '.variables[] | "\(.name) \(.value)"'
+```
+
+**3. Check that nobody holds the gem names.** RubyGems gives a name to the first account that pushes it. Each line
+has to end with `404` until the gem's first release.
+
+```sh
+for gem in configdirector-server-sdk configdirector-openfeature-server-provider configdirector; do
+  curl --silent --output /dev/null --write-out "$gem %{http_code}\n" "https://rubygems.org/api/v1/gems/$gem.json"
+done
+```
+
+**4. Create a pending trusted publisher for the gem, on the day of its first release.** A gem that does not exist
+yet has no page to add a trusted publisher on, so the account that will own it registers a pending one, which
+RubyGems keeps for 12 hours: create it, run the workflow with **dry_run**, and run it again without, all within
+that time. Signed in as the owning account, open <https://rubygems.org/profile/oidc/pending_trusted_publishers>,
+the **Pending Trusted Publishers** page, click **Create**, and fill in **New Pending Trusted Publisher**. For the
+server SDK:
+
+| Field on the page | Value | What it is for, and what goes wrong otherwise |
+|---|---|---|
+| **RubyGem name** | `configdirector-server-sdk` | The gem the first push creates. Under another name the push fails with `You are not allowed to push this gem.` |
+| **Trusted publisher type** | **GitHub Actions** | The kind of publisher these workflows are. Under another type RubyGems finds no publisher for the workflow's token, and the exchange fails with HTTP 404. |
+| **Repository owner** | `ConfigDirector` | With **Repository name**, the repository whose workflow RubyGems trusts. |
+| **Repository name** | `ruby-sdks` | A wrong owner or name makes the exchange fail in the publish job with HTTP 404. |
+| **Workflow filename** | `release-configdirector-server-sdk.yml` | The file name alone, without `.github/workflows/`. Each gem has its own: `release-<gem>.yml`. A wrong name makes the exchange fail with HTTP 404. |
+| **Environment** | `release` | The environment of step 2. Another name makes the exchange fail with HTTP 404. Left blank, any job of that workflow file could publish, in any environment. |
+| **Workflow Repository Owner** | Leave blank | Only for a reusable workflow kept in another repository, which these are not. Filled in with this repository, the form is refused with `workflow_repository must be different from the repository, leave blank for same-repository workflows`; with another one, the exchange fails with HTTP 404. |
+| **Workflow Repository Name** | Leave blank | The same as the row above. |
+
+Then click **Create Pending trusted publisher**. The page lists the publisher with **Valid for** and the time it
+has left, and a line that says the workflow must pass `owner:` with a number: that number has to be the
+`RUBYGEMS_OWNER_ID` of step 2.
+
+Prove it before anything is published: run the gem's release workflow against `main` with **dry_run** checked.
+Its publish job has to end with a line such as the one below, naming the workflow file, the environment and the
+username of the owning account, followed by `Dry run:` and the gem file it did not push.
+
+```
+RubyGems trusts this workflow as 'GitHub Actions ConfigDirector/ruby-sdks @ .github/workflows/release-configdirector-server-sdk.yml (release) ...', and reads the owner 123456 as the account '<username>'.
+```
+
+The dry run proves the repository, the workflow file name, the environment and the account ID. It cannot prove
+the gem name or that the pending publisher has time left, which the page shows. After the first push RubyGems
+turns the pending publisher into the gem's own, makes the account the gem's owner, and lists the publisher on the
+gem's page under **Trusted publishers**; later releases need none of step 4. Prove the first release with:
+
+```sh
+GEM=configdirector-server-sdk
+curl --silent "https://rubygems.org/api/v1/gems/$GEM/owners.json"
+curl --silent "https://rubygems.org/api/v1/versions/$GEM.json" | jq '.[] | {number, metadata}'
+gh release view "$GEM-vX.Y.Z" --repo ConfigDirector/ruby-sdks
+```
+
+The first has to name the owning account alone, the second the version with `rubygems_mfa_required` in its
+metadata, and the third the GitHub Release on the tag.
+
+### When RubyGems refuses the workflow
+
+The publish job prints RubyGems' answer. What each one means:
+
+| Answer | Cause |
+|---|---|
+| `RubyGems did not exchange the identity token of this job for a key (HTTP 404)` | RubyGems knows no trusted publisher with this repository, this workflow file name and the `release` environment: the pending publisher of step 4 was never created or has a field that differs, or, for a gem that exists, its **Trusted publishers** page does not list this workflow. |
+| `RubyGems did not exchange the identity token of this job for a key (HTTP 400): {"error":"Unknown owner ..."}` | `RUBYGEMS_OWNER_ID` is not the ID of a RubyGems account. |
+| `You are not allowed to push this gem.` after `Pushing gem to https://rubygems.org...` | The exchange worked and the push was refused: the account that `RUBYGEMS_OWNER_ID` names has no pending trusted publisher for this gem name with time left, or the gem exists and this workflow is not among its trusted publishers. |
+| `GitHub did not give this job an identity token` or `This job may not request an identity token from GitHub` | The publish job lost its `id-token: write` permission. |
 
 ### Version line
 

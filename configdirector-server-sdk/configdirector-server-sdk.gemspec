@@ -11,6 +11,7 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
   spec.metadata = {
+    "documentation_uri" => "https://docs.configdirector.com/sdks/server/ruby",
     "source_code_uri" => "https://github.com/ConfigDirector/ruby-sdks/tree/main/configdirector-server-sdk",
     "changelog_uri" => "https://github.com/ConfigDirector/ruby-sdks/blob/main/configdirector-server-sdk/CHANGELOG.md",
     "rubygems_mfa_required" => "true"

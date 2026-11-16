@@ -1,0 +1,172 @@
+name: Release configdirector-server-sdk
+
+# Manual by design: releases whatever version configdirector-server-sdk declares on main.
+# Each gem has a workflow file of its own and they share no reusable workflow, because RubyGems trusts a
+# workflow file to publish a gem: this file can publish configdirector-server-sdk and no other gem.
+# The steps live in the Makefile and in .github/scripts, and `make test-release` fails when the release
+# workflows differ by more than the gem's name.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run every check, stop once RubyGems trusts this workflow, and publish nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GEM: configdirector-server-sdk
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Refuse a branch other than main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this workflow against main. $GITHUB_REF is not released."
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+
+      # Here only to refuse a release in seconds and not after the checks. The build job runs it again and
+      # releases what that run decides.
+      - name: Refuse a version that must not be released
+        run: .github/scripts/release-preflight.sh "$GEM" "$RUNNER_TEMP/release-notes.md"
+
+      # An application installs the gem from RubyGems, which serves neither this working tree nor a version of
+      # another gem of this repository that is not released yet. Before the checks, to refuse in seconds a gem
+      # that is released ahead of the SDK version it needs.
+      - run: make release-check GEM="$GEM"
+
+      - run: make check-all
+
+  # A job of its own, on a checkout that no dependency's code has run in: RubyGems alone builds the gem that
+  # is published, and the script that checks what it holds needs nothing but Ruby.
+  build:
+    name: Build
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.preflight.outputs.version }}
+      tag: ${{ steps.preflight.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+
+      # Reads the version from the gemspec, refuses one that is not X.Y.Z, one whose tag already exists, one
+      # RubyGems already has and one without a changelog section, and writes that section to the release
+      # notes file.
+      - name: Resolve the version and the release notes
+        id: preflight
+        run: |
+          mkdir "$RUNNER_TEMP/release"
+          .github/scripts/release-preflight.sh "$GEM" "$RUNNER_TEMP/release/release-notes.md"
+
+      - name: Build the gem and check what it holds
+        env:
+          VERSION: ${{ steps.preflight.outputs.version }}
+        run: |
+          make build
+          cp "dist/$GEM-$VERSION.gem" "$RUNNER_TEMP/release/"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+
+  # The only job that may ask GitHub for an identity token, and the only one in the release environment, which
+  # is what RubyGems trusts. No credential is stored anywhere: the script exchanges the identity token for a key
+  # that RubyGems lets expire within minutes, and that never leaves the script.
+  publish:
+    name: Publish to RubyGems
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+
+      # RUBYGEMS_OWNER_ID is a variable of the release environment: the ID of the RubyGems account that owns
+      # the gems, which RubyGems requires before a workflow may create a gem for that account.
+      - name: Exchange the identity token of this job for a RubyGems key and push the gem
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          RUBYGEMS_OWNER_ID: ${{ vars.RUBYGEMS_OWNER_ID }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: ruby .github/scripts/publish-gem.rb "$RUNNER_TEMP/release/$GEM-$VERSION.gem"
+
+  # Last, so that a tag and a GitHub Release only ever name a version that RubyGems serves.
+  tag:
+    name: Tag the released commit
+    needs: [build, publish]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+
+      - name: Tag the released commit
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" -m "$GEM $VERSION"
+          git push origin "$TAG"
+
+      # --verify-tag refuses to invent a tag should the push above not have landed.
+      - name: Create the GitHub Release from the changelog section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/release/release-notes.md"
