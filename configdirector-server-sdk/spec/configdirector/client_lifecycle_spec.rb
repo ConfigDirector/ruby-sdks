@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
 require "configdirector/testing"
-require "weakref"
+require_relative "../support/garbage_collection"
 require_relative "../support/recording_logger"
 require_relative "../support/sdk_server_serving_the_sample_configs"
 
 RSpec.describe "A client's lifecycle" do
+  include GarbageCollection
+
   include_context "with an SDK server that serves the sample configs"
 
   let(:logger) { RecordingLogger.new }
@@ -90,49 +92,35 @@ RSpec.describe "A client's lifecycle" do
   end
 
   it "is held by nothing in the SDK when it is offline, so its logger can be garbage collected without a close" do
-    logger_of_an_offline_client = Thread.new do
-      logger_of_the_client = RecordingLogger.new
+    logger_collected = logger_collected_once_the_client_is_unreferenced? do |logger_of_the_client|
       ConfigDirector.create_client(
         connection: ConfigDirector::ConnectionOptions.new(mode: "offline"), logger: logger_of_the_client
       ).init
+    end
 
-      WeakRef.new(logger_of_the_client)
-    end.value
-
-    GC.start
-
-    expect(logger_of_an_offline_client.weakref_alive?).to be_falsy
+    expect(logger_collected).to be(true)
   end
 
   it "is held by nothing in the SDK when a test client created it, so its logger can be garbage collected" do
-    logger_of_a_test_client = Thread.new do
-      logger_of_the_client = RecordingLogger.new
+    logger_collected = logger_collected_once_the_client_is_unreferenced? do |logger_of_the_client|
       ConfigDirector::Testing.create_test_client({ "new-checkout" => true }, logger: logger_of_the_client).client.init
+    end
 
-      WeakRef.new(logger_of_the_client)
-    end.value
-
-    GC.start
-
-    expect(logger_of_a_test_client.weakref_alive?).to be_falsy
+    expect(logger_collected).to be(true)
   end
 
   it "is held by nothing in the SDK once it is closed, so its logger can be garbage collected",
      unless: Gem::Version.new(RUBY_VERSION) < Gem::Version.new("4.0") do
     url = sdk_server.url
-    logger_of_a_closed_client = Thread.new do
-      logger_of_the_client = RecordingLogger.new
+
+    logger_collected = logger_collected_once_the_client_is_unreferenced? do |logger_of_the_client|
       closed_client = ConfigDirector.create_client(
         "server-sdk-key", connection: ConfigDirector::ConnectionOptions.new(url: url), logger: logger_of_the_client
       )
       closed_client.init
       closed_client.close
+    end
 
-      WeakRef.new(logger_of_the_client)
-    end.value
-
-    GC.start
-
-    expect(logger_of_a_closed_client.weakref_alive?).to be_falsy
+    expect(logger_collected).to be(true)
   end
 end
