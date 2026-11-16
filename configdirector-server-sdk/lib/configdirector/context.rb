@@ -32,7 +32,8 @@ module ConfigDirector
     # @param anonymous [Boolean] whether the context is anonymous. An anonymous context is used to evaluate
     #   targeting rules, is not kept and does not appear in the dashboard.
     # @raise [ConfigDirectorValidationError] when +id+ is not a String or an Integer, +name+ is not a
-    #   String, +traits+ is not a Hash, or +anonymous+ is neither +true+ nor +false+
+    #   String, +traits+ is not a Hash or is nested deeper than 100 levels, as a Hash or an Array that holds
+    #   itself is, or +anonymous+ is neither +true+ nor +false+
     def initialize(id: nil, kind: nil, name: nil, traits: nil, anonymous: false)
       super(
         id: Internal::Client::ContextAttributes.identifier_text(id), kind: Internal::UnchangeableCopy.of(kind),

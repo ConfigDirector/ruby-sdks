@@ -47,10 +47,12 @@ class ScriptedSdkServer
       :cut_off_by_the_client
     end
 
-    def answer_with_header_lines_until_cut_off(status:, seconds_between_lines:)
+    def answer_with_header_lines_until_cut_off(
+      status:, seconds_between_lines:, header_value: "a header line of an answer whose head never ends"
+    )
       @socket.write("HTTP/1.1 #{status} Scripted\r\n")
       loop do
-        @socket.write("X-Scripted: a header line of an answer whose head never ends\r\n")
+        @socket.write("X-Scripted: #{header_value}\r\n")
         sleep(seconds_between_lines)
       end
     rescue IOError, SystemCallError
@@ -73,6 +75,12 @@ class ScriptedSdkServer
 
     def send_stream_text(text)
       @socket.write("#{text.bytesize.to_s(16)}\r\n#{text}\r\n")
+    end
+
+    def send_a_chunk_size_line_until_cut_off
+      loop { @socket.write("f" * 65_536) }
+    rescue IOError, SystemCallError
+      :cut_off_by_the_client
     end
 
     def end_event_stream

@@ -168,6 +168,17 @@ RSpec.describe "A client in offline mode" do
     )
   end
 
+  it "rejects a config key that is a list holding itself when the client is created" do
+    key_holding_itself = ["new-checkout"]
+    key_holding_itself << key_holding_itself
+
+    expect { offline_client(values: { key_holding_itself => true }) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "The offline values could not be loaded. Invalid config key of class Array. " \
+      "A config key must be a String or a Symbol."
+    )
+  end
+
   it "rejects a config key given both as a String and as a Symbol when the client is created" do
     expect { offline_client(values: { "new-checkout" => true, "new-checkout": false }) }.to raise_error(
       ConfigDirector::ConfigDirectorValidationError,
@@ -233,6 +244,25 @@ RSpec.describe "A client in offline mode" do
     nested_101_levels_deep = (1..100).reduce([]) { |nested, _level| [nested] }
 
     expect { offline_client(values: { "deep-config" => nested_101_levels_deep }) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "The offline values could not be loaded. Invalid value for 'deep-config': nesting of 101 is too deep."
+    )
+  end
+
+  it "rejects a JSON value nested 100,000 levels deep" do
+    nested_100_000_levels_deep = (1..99_999).reduce([]) { |nested, _level| [nested] }
+
+    expect { offline_client(values: { "deep-config" => nested_100_000_levels_deep }) }.to raise_error(
+      ConfigDirector::ConfigDirectorValidationError,
+      "The offline values could not be loaded. Invalid value for 'deep-config': nesting of 101 is too deep."
+    )
+  end
+
+  it "rejects a JSON value that holds itself" do
+    value_holding_itself = { "limits" => [] }
+    value_holding_itself.fetch("limits") << value_holding_itself
+
+    expect { offline_client(values: { "deep-config" => value_holding_itself }) }.to raise_error(
       ConfigDirector::ConfigDirectorValidationError,
       "The offline values could not be loaded. Invalid value for 'deep-config': nesting of 101 is too deep."
     )

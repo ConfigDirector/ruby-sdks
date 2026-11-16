@@ -21,4 +21,5 @@ Gem::Specification.new do |spec|
   )
 
   spec.add_dependency "logger", "~> 1.6"
+  spec.add_dependency "net-http", ">= 0.10.0"
 end

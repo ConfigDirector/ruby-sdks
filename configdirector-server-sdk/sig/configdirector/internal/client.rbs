@@ -1,7 +1,15 @@
 module ConfigDirector
   module Internal
     module UnchangeableCopy
+      MOST_LEVELS_THE_SDK_READS_OF_A_VALUE: Integer
+
       def self.of: (untyped value) -> untyped
+
+      private def self.nested_deeper_than?: (Integer levels, untyped value) -> bool
+
+      private def self.any_nested_deeper_than?: (Integer levels, Array[untyped] contents) -> bool
+
+      private def self.copy_of: (untyped value) -> untyped
     end
 
     module Client
@@ -57,6 +65,8 @@ module ConfigDirector
       end
 
       module ContextAttributes
+        MOST_LEVELS_OF_TRAITS: Integer
+
         def self.identifier_text: (untyped id) -> String?
 
         def self.name_text: (untyped name) -> String?
@@ -65,7 +75,11 @@ module ConfigDirector
 
         def self.anonymous_flag: (untyped anonymous) -> bool
 
-        private def self.with_symbols_as_text: (untyped trait) -> untyped
+        private def self.with_symbols_as_text: (untyped trait, Integer level) -> untyped
+
+        private def self.container_with_symbols_as_text: (Hash[untyped, untyped] | Array[untyped] container, Integer level) -> untyped
+
+        private def self.traits_nested_too_deep: () -> ConfigDirectorValidationError
 
         private def self.text_of_a_symbol: (untyped key_or_value) -> untyped
       end

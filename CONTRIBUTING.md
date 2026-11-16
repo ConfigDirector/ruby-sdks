@@ -5,8 +5,10 @@
 This repository publishes two gems, each from a directory named after it:
 
 - [configdirector-server-sdk](configdirector-server-sdk/), the server SDK, required as `configdirector`, with
-  the module `ConfigDirector`. At runtime it depends on Ruby's standard library only, and names the `logger`
-  gem in its gemspec, because Ruby 4.0 ships `logger` as a bundled gem that Bundler no longer loads on its own.
+  the module `ConfigDirector`. At runtime it depends on Ruby's standard library only. Its gemspec names two of
+  the library's gems: `logger`, because Ruby 4.0 ships it as a bundled gem that Bundler no longer loads on its
+  own, and `net-http` 0.10.0 or later, the first release that limits the head of an answer and each chunk size
+  line to 1 MiB, where the `net/http` that Ruby 3.3 to 4.0 ship reads them into memory without a limit.
 - [configdirector-openfeature-server-provider](configdirector-openfeature-server-provider/), the OpenFeature
   provider built on it, required as `configdirector/openfeature`, with the module `ConfigDirector::OpenFeature`.
 

@@ -126,6 +126,17 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
     )
   end
 
+  it "sends an application's version given as a number as text" do
+    open_transport(metadata: ConfigDirector::Metadata.new(app_name: "my-awesome-app", app_version: 2))
+
+    stream_request = sdk_server.next_stream_request
+
+    expect(stream_request.json["metaContext"]).to eq(
+      "sdkName" => "ruby-server-sdk", "sdkVersion" => ConfigDirector::VERSION,
+      "appName" => "my-awesome-app", "appVersion" => "2"
+    )
+  end
+
   it "asks for the stream below the path of a URL that has one and ends in a slash" do
     open_transport(url: "#{sdk_server.url}/proxy/")
 
@@ -552,6 +563,33 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
 
     expect(second_request.json["sessionId"]).not_to eq(first_request.json["sessionId"])
     expect(event_data_delivered).to be_empty
+  end
+
+  it "asks for the stream again when the head of the SDK server's answer passes 1 MiB" do
+    open_transport
+    first_request = sdk_server.next_stream_request
+
+    answering = Thread.new do
+      first_request.answer_with_header_lines_until_cut_off(
+        status: 200, seconds_between_lines: 0, header_value: "a" * 8_192
+      )
+    end
+
+    expect(sdk_server.receives_a_request_to?("/server/sse/v1", within: 3)).to be(true)
+    expect(answering.join(3)&.value).to eq(:cut_off_by_the_client)
+  ensure
+    answering&.kill
+  end
+
+  it "drops the stream and reconnects when the SDK server sends a chunk size line longer than 1 MiB" do
+    first_request = open_stream_of_a_new_transport
+
+    answering = Thread.new { first_request.send_a_chunk_size_line_until_cut_off }
+
+    expect(sdk_server.receives_a_request_to?("/server/sse/v1", within: 3)).to be(true)
+    expect(answering.join(3)&.value).to eq(:cut_off_by_the_client)
+  ensure
+    answering&.kill
   end
 
   it "closes within 5 seconds while a stream is open and leaves no SDK thread alive" do

@@ -110,12 +110,54 @@ RSpec.describe ConfigDirector::Context do
       .to raise_error(ConfigDirector::ConfigDirectorValidationError)
   end
 
+  it "is built with traits nested 100 levels deep" do
+    traits_nested_100_levels_deep = (1..99).reduce({ "plan" => "pro" }) { |nested, _level| { "nested" => nested } }
+
+    expect(described_class.new(traits: traits_nested_100_levels_deep).traits).to eq(traits_nested_100_levels_deep)
+  end
+
+  it "raises for traits nested deeper than 100 levels" do
+    traits_nested_101_levels_deep = (1..100).reduce({ "plan" => "pro" }) { |nested, _level| { "nested" => nested } }
+
+    expect { described_class.new(traits: traits_nested_101_levels_deep) }
+      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
+  it "raises for traits nested 100,000 levels deep" do
+    traits_nested_100_000_levels_deep = (1..99_999).reduce({}) { |nested, _level| { "nested" => nested } }
+
+    expect { described_class.new(traits: traits_nested_100_000_levels_deep) }
+      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
+  it "raises for traits that hold themselves" do
+    traits = { "plan" => "pro" }
+    traits["account"] = traits
+
+    expect { described_class.new(traits: traits) }.to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
+  it "raises for a trait that is a list holding itself" do
+    teams = ["blue"]
+    teams << teams
+
+    expect { described_class.new(traits: { "teams" => teams }) }
+      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
   it "raises for an anonymous flag that is neither true nor false" do
     expect { described_class.new(anonymous: "yes") }.to raise_error(ConfigDirector::ConfigDirectorValidationError)
   end
 
   it "is built with any kind" do
     expect(described_class.new(kind: "Not A Kind").kind).to eq("Not A Kind")
+  end
+
+  it "is built with a kind that is a list holding itself" do
+    kind = ["device"]
+    kind << kind
+
+    expect(described_class.new(kind: kind).kind).to be(kind)
   end
 
   it "equals a context built with the same values" do
@@ -155,6 +197,14 @@ RSpec.describe ConfigDirector::Context do
 
   it "raises for a value given to with that it would raise for when built" do
     expect { described_class.new(id: "user-123").with(anonymous: "yes") }
+      .to raise_error(ConfigDirector::ConfigDirectorValidationError)
+  end
+
+  it "raises for traits given to with that hold themselves" do
+    traits = { "plan" => "pro" }
+    traits["account"] = traits
+
+    expect { described_class.new(id: "user-123").with(traits: traits) }
       .to raise_error(ConfigDirector::ConfigDirectorValidationError)
   end
 

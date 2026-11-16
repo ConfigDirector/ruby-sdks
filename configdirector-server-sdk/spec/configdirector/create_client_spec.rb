@@ -61,6 +61,30 @@ RSpec.describe "Creating a client" do
     expect(ConfigDirector::ClientHooks.new).to be_frozen
   end
 
+  it "reads an app version given as an Integer as its digits" do
+    expect(ConfigDirector::Metadata.new(app_version: 2).app_version).to eq("2")
+  end
+
+  it "reads an app version given as a Float as its text" do
+    expect(ConfigDirector::Metadata.new(app_version: 1.4).app_version).to eq("1.4")
+  end
+
+  it "reads an app name given as a Symbol as its text" do
+    expect(ConfigDirector::Metadata.new(app_name: :storefront).app_name).to eq("storefront")
+  end
+
+  it "reads an app version given to with as it reads the one it is built with" do
+    expect(ConfigDirector::Metadata.new(app_name: "storefront").with(app_version: 2))
+      .to eq(ConfigDirector::Metadata.new(app_name: "storefront", app_version: "2"))
+  end
+
+  it "has no app name and no app version unless told otherwise" do
+    metadata = ConfigDirector::Metadata.new
+
+    expect(metadata.app_name).to be_nil
+    expect(metadata.app_version).to be_nil
+  end
+
   it "keeps the metadata it was built with when the Strings it was built from change" do
     app_name = +"storefront"
     metadata = ConfigDirector::Metadata.new(app_name: app_name)
@@ -126,6 +150,18 @@ RSpec.describe "Creating a client" do
 
     expect(connection.values).to eq({ "sizes" => ["small"] })
     expect(connection.values).to be_frozen
+  end
+
+  it "keeps a JSON value nested 100 levels deep when the Array it came from changes" do
+    innermost_sizes = ["small"]
+    sizes_nested_100_levels_deep = (1..99).reduce(innermost_sizes) { |nested, _level| [nested] }
+    connection = ConfigDirector::ConnectionOptions.new(
+      mode: "offline", values: { "sizes" => sizes_nested_100_levels_deep }
+    )
+
+    innermost_sizes << "large"
+
+    expect(connection.values.fetch("sizes").flatten).to eq(["small"])
   end
 
   it "compares option objects by their values" do

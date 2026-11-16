@@ -108,15 +108,14 @@ RSpec.describe "The memory and the threads a client holds" do
     expect(objects_after_20_000_additions - objects_after_100_additions).to be < most_objects_gained
   end
 
-  it "leaves as many threads and objects after 60 clients were created, initialized and closed as after 10" do
+  it "leaves no SDK thread and as many objects after 60 clients were created, initialized and closed as after 10" do
     thread_opening_every_stream = thread_opening_every_stream_with(payload_of_20_configs)
 
     create_initialize_and_close_as_many_clients(10)
-    threads_after_10_clients = Thread.list.length
     objects_after_10_clients = objects_alive_after_a_collection
     create_initialize_and_close_as_many_clients(50)
 
-    expect(Thread.list.length).to eq(threads_after_10_clients)
+    expect(sdk_threads_alive.map(&:name)).to eq([])
     expect(objects_alive_after_a_collection - objects_after_10_clients).to be < most_objects_gained
   ensure
     thread_opening_every_stream&.kill

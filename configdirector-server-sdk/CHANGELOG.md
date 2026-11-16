@@ -22,7 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `timeout`, `url`, `file`, `values`), `TelemetryOptions` (`event_queue_limit`, `flush_interval`) and
   `ClientHooks` (`client_ready`, `configs_updated`, `config_evaluated`, `connection_error`). Every duration is in
   seconds. In polling mode a `polling_interval` below 60 seconds is
-  raised to 60 and a warning is logged. An option object cannot be changed once built.
+  raised to 60 and a warning is logged. An `app_name` or `app_version` that is not a String, such as the build
+  number `2`, is read as its text, `"2"`. An option object cannot be changed once built.
 - The client connects to ConfigDirector at `connection.url`. In `"streaming"` mode, the default, it keeps a
   connection open and receives a new value as soon as it changes in ConfigDirector, and it reconnects by itself
   when the connection drops. In `"polling"` mode it asks for new values every `polling_interval`, and
@@ -46,7 +47,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   as a String and a Symbol with the same name, or a value the SDK cannot serve: `nil`, a Float that is not finite,
   a String that is not UTF-8 text, or an object of another class, such as a Symbol or a Time. A JSON value can
   hold `nil`, and the same rules apply to every value and Hash key inside it. A JSON value nested deeper than 100
-  levels is rejected.
+  levels is rejected, and so is one that holds itself.
 - In offline mode `init` reads the file again each time it is called, and reads never read it. Each `init` calls
   the `configs_updated` handlers with every key the values hold and, in `removed_keys`, the keys the file no
   longer holds, then their watches, and the `client_ready` handlers the first time the client becomes ready. An
@@ -85,8 +86,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   for, and cannot be changed once built. An Integer `id` is read as its digits, and a Symbol key or value in
   `traits` is read as its text, so `{ plan: :pro }` is the trait `"plan"` with the value `"pro"`. Any other
   class for `id` or `name`, `traits` that are not a Hash, or an `anonymous` that is neither `true` nor
-  `false` raises `ConfigDirectorValidationError`. A read given a context that is not a `Context`, such as a
-  Hash, raises it too.
+  `false` raises `ConfigDirectorValidationError`. So do `traits` nested deeper than 100 levels, which a Hash or
+  an Array that holds itself is. A read given a context that is not a `Context`, such as a Hash, raises it too.
 - A context whose `kind` is not 1 to 64 characters of lowercase letters, digits, `-` and `_` is ignored
   whole: the config is evaluated as if no context was given, the evaluation's `context` is `nil`, and an
   error is logged once for each invalid kind until the client next sends its telemetry. A client that reports
@@ -213,6 +214,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A request for values in polling mode ends when `connection.timeout` has passed, and a telemetry report after 5
   seconds, counted from before the connection opens, even while ConfigDirector keeps sending an answer that never
   completes.
+- The gem depends on `net-http` 0.10.0 or later, the first release that limits the head of an HTTP answer and
+  each chunk size line to 1 MiB, so an application's lock gains `net-http`, `net-protocol`, `timeout` and `uri`.
+  When an answer passes that limit, a stream reconnects, and a request for values in polling mode or a telemetry
+  report counts as one that failed.
 - Values that hold a number of more than 16,384 digits are not read, and ConfigDirector stores no value that
   long. Such a message of the stream is skipped with an error and the client keeps the values it has, such an
   answer to a request for values in polling mode is a failed request, a JSON config with such a value returns

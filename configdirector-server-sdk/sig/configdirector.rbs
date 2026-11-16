@@ -48,11 +48,11 @@ module ConfigDirector
     attr_reader app_name: String?
     attr_reader app_version: String?
 
-    def self.new: (?app_name: String?, ?app_version: String?) -> instance
+    def self.new: (?app_name: _ToS?, ?app_version: _ToS?) -> instance
 
-    def initialize: (?app_name: String?, ?app_version: String?) -> void
+    def initialize: (?app_name: _ToS?, ?app_version: _ToS?) -> void
 
-    def with: (?app_name: String?, ?app_version: String?) -> instance
+    def with: (?app_name: _ToS?, ?app_version: _ToS?) -> instance
 
     def to_h: () -> { app_name: String?, app_version: String? }
   end
