@@ -68,7 +68,10 @@ module ConfigDirector
         end
 
         def leave_the_delivery_of_the_first_values_to_the_parent_process
-          @lock.synchronize { @first_values_delivered = true unless @served_configs.nil? }
+          @lock.synchronize do
+            @first_values_delivered = true unless @served_configs.nil?
+            @first_values_no_longer_awaited.broadcast
+          end
         end
 
         def timed_out_waiting_for_the_first_values?(give_up_at_monotonic_seconds)

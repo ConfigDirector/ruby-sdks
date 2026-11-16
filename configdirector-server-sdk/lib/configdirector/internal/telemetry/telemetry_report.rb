@@ -20,11 +20,18 @@ module ConfigDirector
               capturedContexts: captured_contexts.map(&:wire_context), trackedEvents: tracked_events.map(&:wire_entry)
             },
             aggregatedEvents: { evaluatedConfig: aggregated_evaluations, invalidContext: invalid_context_wire_entries },
-            droppedEvents: { evaluatedConfig: evaluations_dropped, capturedContexts: captured_contexts_dropped }
+            droppedEvents: wire_counts_of_what_was_dropped
           }
         end
 
         private
+
+        def wire_counts_of_what_was_dropped
+          {
+            evaluatedConfig: AggregatedWireEntries.count_the_sdk_server_reads(evaluations_dropped),
+            capturedContexts: AggregatedWireEntries.count_the_sdk_server_reads(captured_contexts_dropped)
+          }
+        end
 
         def aggregated_evaluations
           AggregatedWireEntries.of(

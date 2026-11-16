@@ -22,10 +22,11 @@ module ConfigDirector
 
         private_constant :CONNECTION_AT_A_LATER_INIT_BY_MODE, :WHAT_FOLLOWS_AN_INIT_WITHOUT_VALUES_BY_MODE
 
-        def initialize(connection:, telemetry:, mode:, serving_state:, intake:, log:)
+        def initialize(connection:, telemetry:, mode:, serving_state:, intake:, log:, lifecycle:)
           @connection = connection
           @telemetry = telemetry
           @mode = mode
+          @lifecycle = lifecycle
           @connection_opened = false
           @serving_state = serving_state
           @log = log
@@ -54,12 +55,16 @@ module ConfigDirector
           )
         end
 
-        def restart_in_a_forked_process(forked_through)
-          case what_follows_a_fork
-          when :nothing_to_restart then nil
-          when :restart_the_connection
-            restart_the_telemetry(forked_through)
-            restart_the_connection
+        def choose_the_reporter_of_what_the_parent_process_collected(forked_through)
+          @telemetry.choose_the_reporter_of_what_the_parent_process_collected(forked_through)
+        end
+
+        def restart_in_a_forked_process
+          @lifecycle.synchronize do
+            case what_follows_a_fork(connection_opened: @connection_opened)
+            when :nothing_to_restart then nil
+            when :restart_the_connection then restart_the_telemetry_and_the_connection
+            end
           end
         rescue StandardError => e
           @log.error(
@@ -76,31 +81,32 @@ module ConfigDirector
         end
 
         def open_the_connection
-          @connection_opened = true
           @serving_state.expect_values_from_the_connection
           Process.singleton_class.prepend(RestartInForkedProcesses)
-          case what_follows_a_fork
+          case what_follows_a_fork(connection_opened: true)
           when :nothing_to_restart then nil
           when :restart_the_connection then LiveClientConnections::OF_THE_PROCESS.add(self)
           end
+          @connection_opened = true
 
           @connection.open(report_unrecoverable_error: @report_unrecoverable_error, &@deliver_payload)
         end
 
-        def what_follows_a_fork
+        def what_follows_a_fork(connection_opened:)
           WhatFollowsAFork.for_a_client_with(
-            mode: @mode, closed: @serving_state.closed?,
+            mode: @mode, connection_opened: connection_opened, closed: @serving_state.closed?,
             connection_failed_unrecoverably: @serving_state.connection_failed_unrecoverably?
           )
         end
 
-        def restart_the_telemetry(forked_through)
-          @telemetry.restart_in_a_forked_process(forked_through)
+        def restart_the_telemetry
+          @telemetry.restart_in_a_forked_process
         rescue StandardError => e
           @log.error("Failed to restart telemetry in forked process #{Process.pid}: #{e.class}: #{e.message.inspect}")
         end
 
-        def restart_the_connection
+        def restart_the_telemetry_and_the_connection
+          restart_the_telemetry
           @log.debug { "Restarting the connection in forked process #{Process.pid}" }
           @serving_state.leave_the_delivery_of_the_first_values_to_the_parent_process
           @connection.restart_in_a_forked_process(

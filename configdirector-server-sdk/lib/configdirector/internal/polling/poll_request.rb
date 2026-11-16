@@ -37,13 +37,16 @@ module ConfigDirector
         private
 
         def response_to_the_post
-          @http_session.open_timeout = @deadline.seconds_left
-          @http_session.start do
-            @http_session.read_timeout = @deadline.seconds_left
-            @http_session.request(json_post) do |response|
-              @body_text_read = body_text_read_until_over_the_limit(response)
-              break response
-            end
+          @deadline.ending_the_exchange_when_it_passes(@http_session) do
+            @http_session.start { response_read_until_over_the_limit }
+          end
+        end
+
+        def response_read_until_over_the_limit
+          @http_session.read_timeout = @deadline.seconds_left
+          @http_session.request(json_post) do |response|
+            @body_text_read = body_text_read_until_over_the_limit(response)
+            break response
           end
         end
 
@@ -81,19 +84,13 @@ module ConfigDirector
             return PollAnswer.unreadable("it is larger than #{MAXIMUM_BODY_MEBIBYTES} MiB")
           end
 
-          payload = json_object_in(@body_text_read)
-          return PollAnswer.unreadable("it is not a JSON object") if payload.nil?
+          payload = Value::ParsedJson.of(@body_text_read)
+          return PollAnswer.unreadable("it is not a JSON object") unless payload.is_a?(Hash)
 
           timestamp = payload["timestamp"]
           PollAnswer.payload(@body_text_read, timestamp: timestamp.is_a?(String) ? timestamp : nil)
-        end
-
-        def json_object_in(text)
-          parsed = JSON.parse(text, allow_duplicate_key: true)
-
-          parsed.is_a?(Hash) ? parsed : nil
-        rescue JSON::ParserError
-          nil
+        rescue JSON::ParserError => e
+          PollAnswer.unreadable(e.message)
         end
 
         def retry_after_seconds_in(response)

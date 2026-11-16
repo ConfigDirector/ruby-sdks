@@ -699,13 +699,13 @@ RSpec.describe "The server SDK payloads a client receives" do
     expect(logger.messages_at(:warn).length).to eq(1)
   end
 
-  it "returns the configs and segments of one payload to every thread that reads while payloads arrive" do
+  it "returns the configs and segments of one payload to each of 16 threads that read while payloads arrive" do
     client, stream_request = streaming_client_initialized_with(payload_for_the_pro_plan)
     updates = updates_received_by(client)
     context = context_on_the_pro_plan
     payloads_keep_arriving = true
     values_read = Queue.new
-    readers = Array.new(8) do
+    readers = Array.new(16) do
       Thread.new do
         while payloads_keep_arriving
           values_read << client.get_all_configs(context: context).values.map(&:value)
@@ -718,7 +718,7 @@ RSpec.describe "The server SDK payloads a client receives" do
     100.times do |delivery|
       stream_request.send_event(delivery.even? ? payload_for_the_team_plan : payload_for_the_pro_plan)
       updates.pop(timeout: 5)
-      16.times { values_of_each_read << values_read.pop }
+      32.times { values_of_each_read << values_read.pop }
     end
     payloads_keep_arriving = false
     readers.each(&:join)

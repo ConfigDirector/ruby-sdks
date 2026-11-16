@@ -47,6 +47,16 @@ class ScriptedSdkServer
       :cut_off_by_the_client
     end
 
+    def answer_with_header_lines_until_cut_off(status:, seconds_between_lines:)
+      @socket.write("HTTP/1.1 #{status} Scripted\r\n")
+      loop do
+        @socket.write("X-Scripted: a header line of an answer whose head never ends\r\n")
+        sleep(seconds_between_lines)
+      end
+    rescue IOError, SystemCallError
+      :cut_off_by_the_client
+    end
+
     def answer_with_a_body_cut_off(status:, body_sent:, content_length:)
       write_answer_head(status, "Content-Length" => content_length.to_s)
       @socket.write(body_sent)

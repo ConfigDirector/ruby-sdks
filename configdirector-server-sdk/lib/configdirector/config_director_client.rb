@@ -315,7 +315,7 @@ module ConfigDirector
 
       Internal::Client::ClientConnection.new(
         connection: connection, telemetry: telemetry, mode: @mode, serving_state: @serving_state, intake: intake,
-        log: @log
+        log: @log, lifecycle: @connection_lifecycle
       )
     end
   end

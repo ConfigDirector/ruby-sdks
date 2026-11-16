@@ -12,6 +12,7 @@ module ConfigDirector
           @endpoint = endpoint
           @timing = timing
           @session_id = SecureRandom.uuid
+          @process_id_of_the_process_that_streams = Process.pid
           @last_event_id_sent = last_event_id
           @parser = ServerSentEvents::EventStreamParser.new(last_event_id: last_event_id) do |event|
             event_data_received.call(event.data)
@@ -31,15 +32,26 @@ module ConfigDirector
 
         def request_the_stream(stream_opened)
           http_session = @endpoint.http_session(@timing)
-          request = @endpoint.stream_request(session_id: @session_id, last_event_id: @last_event_id_sent)
-          http_session.start do
-            http_session.request(request) do |response|
-              @answer = response
-              break unless StreamEnd.stream_opened_by?(status_of(response))
-
-              read_the_stream_in(response, stream_opened)
-            end
+          http_session.start
+          begin
+            read_the_answer_to_the_stream_request(http_session, stream_opened)
+          ensure
+            finish_unless_a_forked_process_copied(http_session)
           end
+        end
+
+        def read_the_answer_to_the_stream_request(http_session, stream_opened)
+          request = @endpoint.stream_request(session_id: @session_id, last_event_id: @last_event_id_sent)
+          http_session.request(request) do |response|
+            @answer = response
+            break unless StreamEnd.stream_opened_by?(status_of(response))
+
+            read_the_stream_in(response, stream_opened)
+          end
+        end
+
+        def finish_unless_a_forked_process_copied(http_session)
+          http_session.finish if Process.pid == @process_id_of_the_process_that_streams && http_session.started?
         end
 
         def read_the_stream_in(response, stream_opened)

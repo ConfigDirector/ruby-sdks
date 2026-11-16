@@ -56,6 +56,7 @@ make check         # lint and test: the fast loop
 make samples-local # the samples' suites against this working tree
 make check-floor   # lint and test on each gem's oldest Ruby, in Docker
 make check-all     # everything CI runs
+make profile       # what an init, a read and a payload cost on this machine
 ```
 
 Targets that run per gem take `GEMS`, so `make test GEMS=configdirector-server-sdk` runs one suite. `install`,
@@ -107,6 +108,24 @@ The specs of a client in a forked process fork the process that runs RSpec. The 
 through a pipe and leaves with `exit!`, so it runs none of RSpec's hooks and none of the examples that follow. Those
 specs run wherever Ruby can fork, which in CI is Ubuntu and macOS, and are left out on Windows.
 
+An example whose handler forks has to fork once only: each forked process opens its own stream, receives the first
+values there and runs the same handler again, so a handler that forks every time forks without end. Set a flag
+before the `fork`, which the forked process is copied with.
+
+The SDK connects with Ruby's default certificate store and has no option to verify less, so a spec cannot make the
+SDK in its own process trust a local certificate. `spec/support/self_signed_tls_listener.rb` is a TLS listener with
+a self-signed certificate, and the examples that use it assert that the SDK ends the handshake and sends nothing.
+Ruby builds the default store when `openssl` loads, from the file `SSL_CERT_FILE` names, so the one example that
+needs a trusted TLS stream starts a process of its own with that variable set
+(`spec/support/process_forking_in_a_handler_over_tls.rb`). It proves that a process forked inside a handler ends
+without closing the stream it was copied with: closing it would send a TLS close notice on the parent's connection.
+
+Three specs hold the SDK to what it must not do under load rather than to a behavior. The memory spec compares
+the objects alive after a full garbage collection, early and late in a long run, and allows 5,000 objects of
+drift. `spec/configdirector/internal/regular_expressions_spec.rb` gives every regular expression in the gem
+100,000 characters written to make it backtrack and one second to answer: add an example there with every new
+expression. The fork spec forks 200 times while the parent receives values and sends telemetry reports.
+
 One example of the client's lifecycle runs on Ruby 4.0 and later only: the one that garbage collects a closed client.
 The `timeout` library that Ruby 3.3 and 3.4 ship keeps the thread of a finished request reachable from its own
 thread, and with it the client that thread worked for, so there the example would fail whatever the SDK holds.
@@ -138,6 +157,10 @@ through `make check-floor`, each gem's oldest Ruby line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
 there rather than in either of them.
+
+`profiling/` holds two measurements of the SDK against a local SDK server, `make profile` and
+`make profile-fork-per-job`, described in its [README](profiling/README.md). They are not checks, so `make check-all`
+does not run them, but `make lint` runs RuboCop on them with the SDK.
 
 ## How the provider identifies itself
 

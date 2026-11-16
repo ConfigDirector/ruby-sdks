@@ -40,11 +40,12 @@ module ConfigDirector
 
         def response_to(json_post, deadline)
           http_session = Connection::HttpSession.to(@telemetry_uri)
-          http_session.open_timeout = deadline.seconds_left
-          http_session.start do
-            http_session.write_timeout = deadline.seconds_left
-            http_session.read_timeout = deadline.seconds_left
-            http_session.request(json_post) { |response| break response }
+          deadline.ending_the_exchange_when_it_passes(http_session) do
+            http_session.start do
+              http_session.write_timeout = deadline.seconds_left
+              http_session.read_timeout = deadline.seconds_left
+              http_session.request(json_post) { |response| break response }
+            end
           end
         end
       end

@@ -13,12 +13,14 @@ module ConfigDirector
         end
 
         def start(&send_a_report)
-          return if @thread&.alive?
+          @lock.synchronize do
+            return if @thread&.alive?
 
-          @stopped = false
-          thread = Thread.new { send_a_report_on_every_interval(send_a_report) }
-          thread.name = "configdirector-telemetry"
-          @thread = thread
+            @stopped = false
+            thread = Thread.new { send_a_report_on_every_interval(send_a_report) }
+            thread.name = "configdirector-telemetry"
+            @thread = thread
+          end
         end
 
         def stop

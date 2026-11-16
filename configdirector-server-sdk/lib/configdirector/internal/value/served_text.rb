@@ -30,12 +30,16 @@ module ConfigDirector
         end
 
         def self.whole_number_in(served_text)
-          return TypedValue.new(value: Integer(served_text, 10)) if served_text.match?(WHOLE_NUMBER_DIGITS)
+          return TypedValue.new(value: Integer(served_text, 10)) if digits_of_a_whole_number?(served_text)
 
           finite_number = Evaluation::NumberComparison.finite_number_in(served_text)
           return "invalid-number" if finite_number.nil? || finite_number != finite_number.floor
 
           TypedValue.new(value: finite_number.to_i)
+        end
+
+        def self.digits_of_a_whole_number?(served_text)
+          served_text.count("0-9") <= ParsedJson::MOST_DIGITS_OF_A_NUMBER && served_text.match?(WHOLE_NUMBER_DIGITS)
         end
 
         def self.finite_number_in(served_text)
@@ -45,14 +49,15 @@ module ConfigDirector
         end
 
         def self.json_in(served_text, json_class)
-          parsed = JSON.parse(served_text, allow_duplicate_key: true)
+          parsed = ParsedJson.of(served_text)
 
           parsed.is_a?(json_class) ? TypedValue.new(value: parsed) : "invalid-json"
         rescue JSON::ParserError
           "invalid-json"
         end
 
-        private_class_method :boolean_in, :string_of, :whole_number_in, :finite_number_in, :json_in
+        private_class_method :boolean_in, :string_of, :whole_number_in, :digits_of_a_whole_number?, :finite_number_in,
+                             :json_in
 
         TYPED_BY_IN_CODE_DEFAULT_VALUE_KIND = {
           boolean: ->(served_text, _config_type) { boolean_in(served_text) },

@@ -136,6 +136,8 @@ module ConfigDirector
 
         def response_to_the_post: () -> Net::HTTPResponse
 
+        def response_read_until_over_the_limit: () -> Net::HTTPResponse
+
         def json_post: () -> Net::HTTP::Post
 
         def body_text_read_until_over_the_limit: (Net::HTTPResponse response) -> String
@@ -143,8 +145,6 @@ module ConfigDirector
         def answer_in: (Net::HTTPResponse response) -> PollAnswer
 
         def answer_holding_the_payload: () -> PollAnswer
-
-        def json_object_in: (String text) -> Hash[String, untyped]?
 
         def retry_after_seconds_in: (Net::HTTPResponse response) -> seconds?
 

@@ -26,7 +26,9 @@ module ConfigDirector
 
         def start_reporting: () -> void
 
-        def restart_in_a_forked_process: (Symbol forked_through) -> void
+        def choose_the_reporter_of_what_the_parent_process_collected: (Symbol forked_through) -> void
+
+        def restart_in_a_forked_process: () -> void
 
         def close: () -> void
       end
@@ -109,6 +111,10 @@ module ConfigDirector
       end
 
       module AggregatedWireEntries
+        LARGEST_COUNT_THE_SDK_SERVER_READS: Integer
+
+        def self.count_the_sdk_server_reads: (Integer count) -> Integer
+
         def self.of: (
           Hash[wire_event, Integer] counts_by_wire_event,
           counted_since: Time?,
@@ -346,6 +352,8 @@ module ConfigDirector
 
         private
 
+        def wire_counts_of_what_was_dropped: () -> Hash[Symbol, Integer]
+
         def aggregated_evaluations: () -> Array[wire_event]
 
         def counts_by_wire_event: () -> Hash[wire_event, Integer]
@@ -354,6 +362,7 @@ module ConfigDirector
       class CollectedTelemetry
         SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS: Float
         SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS: Float
+        REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED: Hash[Symbol, Symbol]
 
         @evaluations_limit: Integer
         @captured_contexts_limit: Integer
@@ -374,7 +383,7 @@ module ConfigDirector
 
         def count_invalid_context: (String kind_sample) -> invalid_context_recording
 
-        def keep_what_the_parent_process_collected: () -> void
+        def choose_the_reporter_of_what_the_parent_process_collected: (Symbol forked_through) -> void
 
         def taken_for_a_report: () -> TelemetryReport
 
@@ -498,7 +507,6 @@ module ConfigDirector
         include _ClientTelemetry
 
         COLLECTS_BY_REPORTING: Hash[Symbol, bool]
-        REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED: Hash[Symbol, Symbol]
 
         @reporter: EventReporter
         @collected_telemetry: CollectedTelemetry
@@ -534,6 +542,8 @@ module ConfigDirector
         ) -> void
 
         private
+
+        def start_the_schedule_when_reporting_on_it: () -> void
 
         def report_what_was_collected: () -> void
 

@@ -7,7 +7,13 @@ module ConfigDirector
         SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS = 0.7
         SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS = 0.3
 
-        private_constant :SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS, :SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS
+        REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED = {
+          fork: :parent_process,
+          daemon: :forked_process
+        }.freeze
+
+        private_constant :SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS, :SHARE_OF_THE_EVENT_QUEUE_FOR_CAPTURED_CONTEXTS,
+                         :REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED
 
         def initialize(event_queue_limit)
           @evaluations_limit = (event_queue_limit * SHARE_OF_THE_EVENT_QUEUE_FOR_EVALUATIONS).ceil
@@ -40,8 +46,11 @@ module ConfigDirector
           @invalid_context_submissions.count(kind_sample, Time.now)
         end
 
-        def keep_what_the_parent_process_collected
-          @collecting_process_id = Process.pid
+        def choose_the_reporter_of_what_the_parent_process_collected(forked_through)
+          case REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED.fetch(forked_through)
+          when :parent_process then nil
+          when :forked_process then @collecting_process_id = Process.pid
+          end
         end
 
         def taken_for_a_report

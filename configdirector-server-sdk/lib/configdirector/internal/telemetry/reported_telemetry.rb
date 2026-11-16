@@ -11,12 +11,7 @@ module ConfigDirector
           closed: false
         }.freeze
 
-        REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED = {
-          fork: :parent_process,
-          daemon: :forked_process
-        }.freeze
-
-        private_constant :COLLECTS_BY_REPORTING, :REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED
+        private_constant :COLLECTS_BY_REPORTING
 
         def self.for_a_client_with(
           server_sdk_key:, metadata:, connection_options:, telemetry_options:, sdk_identity:, logger:
@@ -68,19 +63,17 @@ module ConfigDirector
 
         def start_reporting
           @lock.synchronize do
-            return unless @reporting == :not_started
-
-            @reporting = :on_the_schedule
-            @schedule.start { report_what_was_collected }
+            @reporting = :on_the_schedule if @reporting == :not_started
+            start_the_schedule_when_reporting_on_it
           end
         end
 
-        def restart_in_a_forked_process(forked_through)
-          case REPORTER_OF_WHAT_THE_PARENT_PROCESS_COLLECTED_BY_WHAT_FORKED.fetch(forked_through)
-          when :parent_process then nil
-          when :forked_process then @collected_telemetry.keep_what_the_parent_process_collected
-          end
-          @schedule.start { report_what_was_collected } if @reporting == :on_the_schedule
+        def choose_the_reporter_of_what_the_parent_process_collected(forked_through)
+          @collected_telemetry.choose_the_reporter_of_what_the_parent_process_collected(forked_through)
+        end
+
+        def restart_in_a_forked_process
+          @lock.synchronize { start_the_schedule_when_reporting_on_it }
         end
 
         def close
@@ -97,6 +90,10 @@ module ConfigDirector
         end
 
         private
+
+        def start_the_schedule_when_reporting_on_it
+          @schedule.start { report_what_was_collected } if @reporting == :on_the_schedule
+        end
 
         def report_what_was_collected
           report = @lock.synchronize do

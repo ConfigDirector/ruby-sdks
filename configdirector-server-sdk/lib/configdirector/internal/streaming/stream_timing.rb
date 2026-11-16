@@ -12,6 +12,12 @@ module ConfigDirector
       )
 
       class StreamTiming
+        def deadline_of_a_heartbeat
+          Connection::RequestDeadline.on_the_clock_of_the_process(
+            seconds_to_open_a_stream.to_f + seconds_of_silence_of_a_dropped_stream.to_f
+          )
+        end
+
         def self.of_the_protocol
           new(
             seconds_between_heartbeats: 90,

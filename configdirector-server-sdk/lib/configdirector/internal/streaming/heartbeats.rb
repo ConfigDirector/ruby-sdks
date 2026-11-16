@@ -39,8 +39,10 @@ module ConfigDirector
 
         def answer_to_a_heartbeat_of(session_id)
           http_session = @endpoint.http_session(@timing)
-          http_session.start do
-            http_session.request(@endpoint.heartbeat_request(session_id: session_id)) { |response| break response }
+          @timing.deadline_of_a_heartbeat.ending_the_exchange_when_it_passes(http_session) do
+            http_session.start do
+              http_session.request(@endpoint.heartbeat_request(session_id: session_id)) { |response| break response }
+            end
           end
         end
       end

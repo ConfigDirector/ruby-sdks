@@ -11,7 +11,7 @@ module ConfigDirector
         private_constant :DELTA_KIND
 
         def self.payload_in(payload_text)
-          wire_payload = JSON.parse(payload_text, allow_duplicate_key: true)
+          wire_payload = Value::ParsedJson.of(payload_text)
           raise NotAServerSdkPayload, "it is not a JSON object" unless wire_payload.is_a?(Hash)
 
           wire_configs = wire_payload["configs"]

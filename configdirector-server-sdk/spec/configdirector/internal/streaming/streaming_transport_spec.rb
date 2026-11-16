@@ -192,6 +192,30 @@ RSpec.describe ConfigDirector::Internal::Streaming::StreamingTransport do
     expect(heartbeat.headers["user-agent"]).to eq("ruby-server-sdk/#{ConfigDirector::VERSION}")
   end
 
+  it "sends the next heartbeat when the SDK server keeps sending header lines in answer to one" do
+    stream_request = open_stream_of_a_new_transport(
+      timing: timing_with_frequent_heartbeats.with(
+        seconds_to_open_a_stream: 0.2, seconds_of_silence_of_a_dropped_stream: 0.3
+      )
+    )
+    thread_keeping_the_stream_open = Thread.new do
+      loop do
+        stream_request.send_stream_text(": the stream is open\n\n")
+        sleep(0.1)
+      end
+    end
+    first_heartbeat = sdk_server.next_heartbeat_request
+
+    answering = Thread.new do
+      first_heartbeat.answer_with_header_lines_until_cut_off(status: 204, seconds_between_lines: 0.05)
+    end
+
+    expect(sdk_server.receives_a_request_to?("/server/heartbeat/v1", within: 3)).to be(true)
+    expect(answering.value).to eq(:cut_off_by_the_client)
+  ensure
+    thread_keeping_the_stream_open&.kill
+  end
+
   it "sends no heartbeat while no stream is open" do
     open_transport(timing: timing_with_frequent_heartbeats)
     sdk_server.next_stream_request

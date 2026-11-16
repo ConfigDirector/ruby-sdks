@@ -108,6 +108,29 @@ module ConfigDirector
         def self.new: (value: config_value) -> instance
       end
 
+      module ParsedJson
+        MOST_DIGITS_OF_A_NUMBER: Integer
+        MORE_DIGITS_THAN_A_NUMBER_HAS: String
+        QUOTE: String
+        QUOTE_OR_SLASH: Regexp
+        QUOTE_OR_BACKSLASH: Regexp
+        END_OF_A_COMMENT_BY_ITS_START: Hash[String, String]
+
+        def self.of: (String json_text) -> untyped
+
+        private def self.parsed_without_repeating_the_text_in_an_error: (String json_text) -> untyped
+
+        private def self.number_with_too_many_digits_in?: (String json_bytes) -> bool
+
+        private def self.run_of_too_many_digits_in?: (String bytes) -> bool
+
+        private def self.bytes_outside_the_strings_and_comments_of: (String json_bytes) -> String
+
+        private def self.position_after_what_opens_at: (Integer quote_or_slash, String json_bytes) -> Integer
+
+        private def self.position_after_the_string_opened_at: (Integer opening_quote, String json_bytes) -> Integer
+      end
+
       module ServedText
         CONFIG_TYPES_NOT_READABLE_AS_A_STRING: Array[String]
         WHOLE_NUMBER_DIGITS: Regexp
@@ -124,6 +147,8 @@ module ConfigDirector
         private def self.string_of: (String served_text, String config_type) -> (TypedValue | String)
 
         private def self.whole_number_in: (String served_text) -> (TypedValue | String)
+
+        private def self.digits_of_a_whole_number?: (String served_text) -> bool
 
         private def self.finite_number_in: (String served_text) -> (TypedValue | String)
 

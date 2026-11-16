@@ -890,6 +890,20 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     expect(sdk_threads_alive).to be_empty
   end
 
+  it "ends a poll at its timeout when the SDK server keeps sending header lines" do
+    opening = start_opening_a_new_transport(seconds_a_poll_may_take: 0.5)
+    first_request = sdk_server.next_poll_request
+
+    answering = Thread.new do
+      first_request.answer_with_header_lines_until_cut_off(status: 200, seconds_between_lines: 0.05)
+    end
+    seconds_the_poll_took = seconds_taken { opening.join(5) }
+
+    expect(seconds_the_poll_took).to be_between(0.4, 2)
+    expect(answering.value).to eq(:cut_off_by_the_client)
+    expect(logger.messages_at(:error).grep(/\A\[PollingTransport\] Error during polling: /).length).to eq(1)
+  end
+
   it "can be closed without having been opened" do
     transport = transport_to(sdk_server.url)
 
@@ -940,6 +954,23 @@ RSpec.describe ConfigDirector::Internal::Polling::PollingTransport do
     expect(sdk_threads_alive).to be_empty
     expect(pauses_before_the_next_poll).to be_empty
     expect(sdk_server.receives_a_request_to?("/server/polling/v1", within: 0.2)).to be(false)
+  end
+
+  it "ends a forked process when the delivery of a later poll that forked it returns", unless: Gem.win_platform? do
+    transport = transport_to(sdk_server.url)
+    forked_process_ids = Queue.new
+    deliveries = 0
+    opening = start_opening(transport) do |_payload_text|
+      deliveries += 1
+      forked_process_ids << fork if deliveries == 2
+    end
+
+    sdk_server.next_poll_request.answer(status: 200, body: '{"configs":{}}')
+    opening.join(5)
+    sdk_server.next_poll_request.answer(status: 200, body: '{"configs":{}}')
+    process_id_of_the_fork = forked_process_ids.pop(timeout: 5)
+
+    expect(exit_status_within(5, process_id_of_the_fork)&.exitstatus).to eq(0)
   end
 
   it "lets its process exit while its polling thread is alive" do

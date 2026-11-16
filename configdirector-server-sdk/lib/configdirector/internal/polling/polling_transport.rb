@@ -64,6 +64,7 @@ module ConfigDirector
           @lock.synchronize do
             return if @closed
 
+            @polling_thread&.stop
             @polling_thread = StoppableThread.start("configdirector-polling", &polling)
           end
         end

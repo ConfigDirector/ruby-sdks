@@ -20,7 +20,9 @@ module ConfigDirector
 
         def start_reporting; end
 
-        def restart_in_a_forked_process(_forked_through); end
+        def choose_the_reporter_of_what_the_parent_process_collected(_forked_through); end
+
+        def restart_in_a_forked_process; end
 
         def close; end
       end

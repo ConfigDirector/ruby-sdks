@@ -184,4 +184,35 @@ RSpec.describe ConfigDirector::Internal::Value::ServedText do
   it "reports a missing value for no value" do
     expect(described_class.typed_as(:string, nil, "string")).to eq("value-missing")
   end
+
+  it "reads a whole number of 16,384 digits" do
+    expect(described_class.typed_as(:integer, "7" * 16_384, "integer")).to eq(typed(((10**16_384) - 1) / 9 * 7))
+  end
+
+  it "reads a negative whole number of 16,384 digits" do
+    expect(described_class.typed_as(:integer, "-#{"7" * 16_384}", "integer")).to eq(
+      typed(-(((10**16_384) - 1) / 9 * 7))
+    )
+  end
+
+  it "does not read a negative whole number of 16,385 digits" do
+    expect(described_class.typed_as(:integer, "-#{"7" * 16_385}", "integer")).to eq("invalid-number")
+  end
+
+  it "does not read a whole number of 16,385 digits" do
+    expect(described_class.typed_as(:integer, "7" * 16_385, "integer")).to eq("invalid-number")
+  end
+
+  it "does not read a JSON array that holds a number of 16,385 digits" do
+    expect(described_class.typed_as(:json_array, "[#{"7" * 16_385}]", "json")).to eq("invalid-json")
+  end
+
+  it "does not create an object of the class a JSON object names" do
+    stub_const("ClassThatJsonCouldCreate", Class.new { def self.json_create(_json_object) = new })
+    served_text = '{"json_class":"ClassThatJsonCouldCreate"}'
+
+    expect(described_class.typed_as(:json_object, served_text, "json")).to eq(
+      typed({ "json_class" => "ClassThatJsonCouldCreate" })
+    )
+  end
 end

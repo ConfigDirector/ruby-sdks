@@ -339,7 +339,12 @@ module ConfigDirector
       module WhatFollowsAFork
         WHAT_FOLLOWS_A_FORK_BY_MODE: Hash[String, Symbol]
 
-        def self.for_a_client_with: (mode: String, closed: bool, connection_failed_unrecoverably: bool) -> Symbol
+        def self.for_a_client_with: (
+          mode: String,
+          connection_opened: bool,
+          closed: bool,
+          connection_failed_unrecoverably: bool
+        ) -> Symbol
       end
 
       interface _ProcessThatCanFork
@@ -370,7 +375,11 @@ module ConfigDirector
 
         private
 
-        def restart_each_in_a_forked_process: (Symbol forked_through) -> nil
+        def without: (ClientConnection client_connection) -> Array[ClientConnection]
+
+        def restart_each_on_a_thread_of_the_forked_process: (Array[ClientConnection] client_connections) -> nil
+
+        def restart_each_in_a_forked_process: (Array[ClientConnection] client_connections) -> nil
       end
 
       class ClientConnection
@@ -380,6 +389,7 @@ module ConfigDirector
         @connection: Connection::_Connection
         @telemetry: Telemetry::_ClientTelemetry
         @mode: String
+        @lifecycle: Monitor
         @connection_opened: bool
         @serving_state: ServingState
         @log: Logging::ClientLog
@@ -392,7 +402,8 @@ module ConfigDirector
           mode: String,
           serving_state: ServingState,
           intake: ConnectionIntake,
-          log: Logging::ClientLog
+          log: Logging::ClientLog,
+          lifecycle: Monitor
         ) -> void
 
         def open: () -> Symbol?
@@ -401,7 +412,9 @@ module ConfigDirector
 
         def warn_that_no_values_arrived_within: (seconds timeout) -> void
 
-        def restart_in_a_forked_process: (Symbol forked_through) -> void
+        def choose_the_reporter_of_what_the_parent_process_collected: (Symbol forked_through) -> void
+
+        def restart_in_a_forked_process: () -> void
 
         private
 
@@ -409,11 +422,11 @@ module ConfigDirector
 
         def open_the_connection: () -> Symbol
 
-        def what_follows_a_fork: () -> Symbol
+        def what_follows_a_fork: (connection_opened: bool) -> Symbol
 
-        def restart_the_telemetry: (Symbol forked_through) -> void
+        def restart_the_telemetry_and_the_connection: () -> void
 
-        def restart_the_connection: () -> void
+        def restart_the_telemetry: () -> void
       end
 
       class ServingState

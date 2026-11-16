@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../../support/elapsed_seconds"
+require_relative "../../../support/forked_process"
 require_relative "../../../support/recording_logger"
 require_relative "../../../support/scripted_sdk_server"
 require_relative "../../../support/waiting"
@@ -159,9 +160,23 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
       sdk_server.next_telemetry_request.answer(status: 401)
       Waiting.wait_up_to(2) { Thread.list.none? { |thread| thread.name == "configdirector-telemetry" } }
 
-      telemetry.restart_in_a_forked_process(:fork)
+      telemetry.restart_in_a_forked_process
 
       expect(Thread.list.map(&:name)).not_to include("configdirector-telemetry")
+    end
+  end
+
+  describe "in a forked process, when it is started again before anything restarted it", unless: Gem.win_platform? do
+    it "starts its thread" do
+      telemetry = telemetry_reporting
+      telemetry.start_reporting
+
+      forked_process = ForkedProcess.reporting do
+        telemetry.start_reporting
+        Thread.list.count { |thread| thread.name == "configdirector-telemetry" }
+      end
+
+      expect(forked_process.report).to eq(1)
     end
   end
 
@@ -284,6 +299,23 @@ RSpec.describe ConfigDirector::Internal::Telemetry::ReportedTelemetry do
           "the SDK server gave no complete answer within 0.3 seconds"
         ]
       )
+    end
+  end
+
+  describe "when the SDK server keeps sending header lines" do
+    it "gives the report up after the time a report may take, and sends the next report" do
+      telemetry = telemetry_reporting(seconds_a_report_may_take: 0.3)
+      telemetry.record_evaluation(read_of("read-before-the-answer-without-end"))
+      telemetry.start_reporting
+      first_request = sdk_server.next_telemetry_request
+
+      answering = Thread.new do
+        first_request.answer_with_header_lines_until_cut_off(status: 204, seconds_between_lines: 0.05)
+      end
+      telemetry.record_evaluation(read_of("read-after-the-answer-without-end"))
+
+      expect(config_keys_reported_in(sdk_server.next_telemetry_request)).to eq(["read-after-the-answer-without-end"])
+      expect(answering.value).to eq(:cut_off_by_the_client)
     end
   end
 

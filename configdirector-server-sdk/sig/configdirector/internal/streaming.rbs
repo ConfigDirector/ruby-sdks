@@ -4,6 +4,8 @@ module ConfigDirector
       class Stopped < Exception
       end
 
+      ID_OF_THE_PROCESS_THAT_STARTED_THE_THREAD: Symbol
+
       @thread: Thread
 
       def self.start: (String name) { () -> void } -> StoppableThread
@@ -13,6 +15,8 @@ module ConfigDirector
       def self.unstoppable: [T] () { () -> T } -> T
 
       def self.stop_here_if_asked_to: () -> void
+
+      private def self.stop_here_when_a_forked_process_copied_the_thread: () -> void
 
       def initialize: (Thread thread) -> void
 
@@ -38,6 +42,8 @@ module ConfigDirector
         ) -> instance
 
         def self.of_the_protocol: () -> StreamTiming
+
+        def deadline_of_a_heartbeat: () -> Connection::RequestDeadline
       end
 
       class StreamEndpoint
@@ -127,6 +133,7 @@ module ConfigDirector
       class StreamConnection
         @endpoint: StreamEndpoint
         @timing: StreamTiming
+        @process_id_of_the_process_that_streams: Integer
         @last_event_id_sent: String
         @parser: ServerSentEvents::EventStreamParser
         @answer: Net::HTTPResponse?
@@ -140,6 +147,10 @@ module ConfigDirector
         private
 
         def request_the_stream: (^() -> void stream_opened) -> void
+
+        def read_the_answer_to_the_stream_request: (Net::HTTP http_session, ^() -> void stream_opened) -> void
+
+        def finish_unless_a_forked_process_copied: (Net::HTTP http_session) -> void
 
         def read_the_stream_in: (Net::HTTPResponse response, ^() -> void stream_opened) -> void
 

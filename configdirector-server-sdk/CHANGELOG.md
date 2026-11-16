@@ -203,6 +203,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   once, and handlers and watches registered before the fork keep firing there. The parent's connection is not
   affected. A client that was never initialized, was closed, was refused by ConfigDirector, or is offline does
   nothing at a fork.
+- A fork is safe at any moment: while values arrive, while a telemetry report is being sent, while another thread
+  is in `init`, and from a signal handler that interrupted a call into the client. The forked process starts its
+  connection on a thread of the SDK right after the fork, and `fork` does not wait for it.
+- A process that a `configs_updated`, `client_ready` or `connection_error` handler or a watch forked without a
+  block, on a thread of the SDK, can read from the client inside that handler. It ends when the handler returns
+  in it, with exit status 0 and its `at_exit` hooks, as it would after the block of `fork { }`, and the parent
+  keeps receiving every update.
+- A request for values in polling mode ends when `connection.timeout` has passed, and a telemetry report after 5
+  seconds, counted from before the connection opens, even while ConfigDirector keeps sending an answer that never
+  completes.
+- Values that hold a number of more than 16,384 digits are not read, and ConfigDirector stores no value that
+  long. Such a message of the stream is skipped with an error and the client keeps the values it has, such an
+  answer to a request for values in polling mode is a failed request, a JSON config with such a value returns
+  the in-code default value with the reason `"invalid-json"`, and an integer config with such a value returns it
+  with `"invalid-number"`.
+- The error the client logs for a message of the stream that is not JSON says `it is not valid JSON` and never
+  repeats the message, so a message that repeats the server SDK key does not put it in the log.
 - `require "configdirector/testing"` loads `ConfigDirector::Testing.create_test_client(values, timeout:, logger:)`,
   which returns a `ConfigDirector::Testing::TestClient` for testing code that reads configs. Its `client` is the
   SDK's real client over an in-memory connection the test controls: it needs no server SDK key, opens no network

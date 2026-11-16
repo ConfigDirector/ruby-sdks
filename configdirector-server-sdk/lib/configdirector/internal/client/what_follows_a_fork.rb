@@ -13,8 +13,8 @@ module ConfigDirector
 
         private_constant :WHAT_FOLLOWS_A_FORK_BY_MODE
 
-        def self.for_a_client_with(mode:, closed:, connection_failed_unrecoverably:)
-          return :nothing_to_restart if closed || connection_failed_unrecoverably
+        def self.for_a_client_with(mode:, connection_opened:, closed:, connection_failed_unrecoverably:)
+          return :nothing_to_restart if !connection_opened || closed || connection_failed_unrecoverably
 
           WHAT_FOLLOWS_A_FORK_BY_MODE.fetch(mode)
         end

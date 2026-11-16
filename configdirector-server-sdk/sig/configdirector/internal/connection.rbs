@@ -134,6 +134,8 @@ module ConfigDirector
         private def self.shares_listed_in: (Hash[untyped, untyped] wire_rule, String rule_id) -> Array[Evaluation::Share]?
 
         private def self.share_defined_by: (untyped wire_share) -> Evaluation::Share
+
+        private def self.finite_percentage_of: (untyped wire_share) -> Float
       end
 
       module ServerSdkPayloadParser
@@ -356,6 +358,8 @@ module ConfigDirector
       end
 
       class RequestDeadline
+        SECONDS_THE_TIMER_OF_THE_SESSION_STAYS_BEHIND: Integer
+
         @monotonic_seconds: ^() -> Float
         @passes_at: Float
         @seconds_the_request_may_take: seconds
@@ -365,6 +369,8 @@ module ConfigDirector
         def initialize: (seconds_the_request_may_take: seconds, monotonic_seconds: ^() -> Float) -> void
 
         def description_of_having_passed: () -> String
+
+        def ending_the_exchange_when_it_passes: [T] (Net::HTTP http_session) { () -> T } -> T
 
         def seconds_left: () -> Float
       end

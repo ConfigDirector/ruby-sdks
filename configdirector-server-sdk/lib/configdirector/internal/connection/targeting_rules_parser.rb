@@ -43,20 +43,27 @@ module ConfigDirector
         end
 
         def self.share_defined_by(wire_share)
-          percentage = wire_share.is_a?(Hash) ? wire_share["percentage"] : nil
-          unless percentage.is_a?(Integer) || percentage.is_a?(Float)
-            raise UnreadableDefinition, "a rollout share has no percentage"
-          end
+          percentage = finite_percentage_of(wire_share)
 
           Evaluation::Share.new(
-            id: WireFields.text_required_in(wire_share, "id", "a rollout share"), percentage: percentage.to_f,
+            id: WireFields.text_required_in(wire_share, "id", "a rollout share"), percentage: percentage,
             value: Evaluation::ScalarText.of(wire_share["value"]),
             value_id: WireFields.text_or_nil_in(wire_share, "valueId"),
             variation_id: WireFields.text_or_nil_in(wire_share, "variationId")
           )
         end
 
-        private_class_method :rule_defined_by, :conditions_listed_in, :shares_listed_in, :share_defined_by
+        def self.finite_percentage_of(wire_share)
+          percentage = wire_share.is_a?(Hash) ? wire_share["percentage"] : nil
+          unless percentage.is_a?(Integer) || percentage.is_a?(Float)
+            raise UnreadableDefinition, "a rollout share has no percentage"
+          end
+
+          percentage.clamp(-Float::MAX, Float::MAX).to_f
+        end
+
+        private_class_method :rule_defined_by, :conditions_listed_in, :shares_listed_in, :share_defined_by,
+                             :finite_percentage_of
       end
     end
   end

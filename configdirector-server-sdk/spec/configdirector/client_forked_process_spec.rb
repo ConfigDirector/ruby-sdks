@@ -3,9 +3,13 @@
 require "configdirector/testing"
 require "rbconfig"
 require "timeout"
+require "tmpdir"
 require_relative "../support/elapsed_seconds"
 require_relative "../support/forked_process"
+require_relative "../support/recording_logger_pausing_at_a_line"
+require_relative "../support/recording_logger_writing_under_a_lock"
 require_relative "../support/sdk_server_publishing_to_every_stream"
+require_relative "../support/self_signed_certificate"
 require_relative "../support/spawned_process"
 
 RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
@@ -22,6 +26,31 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     wait_up_to(5) { client.get_value("day-of-the-week", "Sunday") != day }
 
     client.get_value("day-of-the-week", "Sunday")
+  end
+
+  def thread_repeating_every_millisecond
+    Thread.new do
+      loop do
+        yield
+        sleep(0.001)
+      end
+    end
+  end
+
+  def threads_publishing_to_and_reading_from(streams, client)
+    payload_texts = [payload_serving_tuesday, payload_serving_monday]
+
+    [
+      thread_repeating_every_millisecond { streams.publish(payload_texts.rotate!.first) },
+      thread_repeating_every_millisecond { client.get_value("day-of-the-week", "Sunday") }
+    ]
+  end
+
+  def day_received_and_read_after_a_fork?(client, days_watched)
+    days_watched.clear
+    days_received_and_read = [days_watched.pop(timeout: 5), client.get_value("day-of-the-week", "Sunday")]
+
+    (days_received_and_read - %w[Monday Tuesday]).empty?
   end
 
   def info_lines_once_there_are(count)
@@ -416,7 +445,10 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
   it "logs one debug line that names the forked process for a client that restarts" do
     client, = streaming_client_initialized_with(payload_serving_monday)
 
-    forked_process = ForkedProcess.reporting { [Process.pid, logger.messages_at(:debug)] }
+    forked_process = ForkedProcess.reporting do
+      wait_up_to(5) { logger.messages_at(:debug).grep(/forked process/).any? }
+      [Process.pid, logger.messages_at(:debug)]
+    end
     process_id_of_the_fork, debug_lines = forked_process.report
 
     expect(debug_lines.grep(/forked process/)).to eq(
@@ -533,7 +565,11 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     client = client_connecting_to(sdk_server.url)
     client.init
 
-    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+    forked_process = ForkedProcess.reporting do
+      wait_up_to(5) { sdk_threads_alive.any? { |thread| thread.name == "configdirector-telemetry" } }
+      sleep(0.2)
+      sdk_threads_alive.map(&:name)
+    end
 
     expect(forked_process.report.count("configdirector-telemetry")).to eq(1)
   end
@@ -561,7 +597,10 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     sdk_server.next_stream_request.answer(status: 401)
     initializing.join(10)
 
-    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+    forked_process = ForkedProcess.reporting do
+      sleep(0.3)
+      sdk_threads_alive.map(&:name)
+    end
 
     expect(forked_process.report).not_to include("configdirector-telemetry")
   end
@@ -572,7 +611,10 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     client.init
     client.close
 
-    forked_process = ForkedProcess.reporting { sdk_threads_alive.map(&:name) }
+    forked_process = ForkedProcess.reporting do
+      sleep(0.3)
+      sdk_threads_alive.map(&:name)
+    end
 
     expect(forked_process.report).not_to include("configdirector-telemetry")
   end
@@ -629,23 +671,193 @@ RSpec.describe "A client in a forked process", unless: Gem.win_platform? do
     expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 0)).to be(false)
   end
 
-  it "lets each of 50 forked processes read a value and exit within 5 seconds while updates stream" do
-    client, stream_of_the_parent = streaming_client_initialized_with(payload_serving_monday)
-    payload_texts = [payload_serving_tuesday, payload_serving_monday]
-    thread_streaming_updates = Thread.new do
-      loop do
-        stream_of_the_parent.send_event(payload_texts.rotate!.first)
-        sleep(0.001)
+  it "lets each of 200 forked processes read a value, receive values of its own and exit within 5 seconds, " \
+     "while the parent receives values and sends telemetry reports" do
+    streams = streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(
+      sdk_server.url, telemetry: ConfigDirector::TelemetryOptions.new(flush_interval: 0.01)
+    )
+    client.init
+    days_watched = Queue.new
+    client.watch("day-of-the-week", "Sunday") { |day| days_watched << day }
+    client.get_value("day-of-the-week", "Sunday")
+    sdk_server.next_telemetry_request(within: 10)
+    threads_keeping_the_parent_busy = threads_publishing_to_and_reading_from(streams, client)
+
+    exit_statuses = Array.new(200) do
+      exit_status_within(5, fork { exit!(day_received_and_read_after_a_fork?(client, days_watched)) })
+    end
+    threads_keeping_the_parent_busy.each { |thread| thread.kill.join }
+
+    expect(exit_statuses.count { |exit_status| exit_status&.success? }).to eq(200)
+    expect(sdk_server.receives_a_request_to?(ScriptedSdkServer::TELEMETRY_PATH, within: 1)).to be(true)
+  end
+
+  it "ends a forked process when the handler that forked it returns, and leaves the parent every later update" do
+    streams = streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+    report_reader, report_writer = IO.pipe
+    forked_process_ids = Queue.new
+    days_updated_to = Queue.new
+    forked = false
+    client.on(:configs_updated) do
+      days_updated_to << client.get_value("day-of-the-week", "Sunday")
+      next if forked
+
+      forked = true
+      process_id = fork
+      day_read_in_the_handler = client.get_value("day-of-the-week", "Sunday")
+      process_id.nil? ? report_writer.write(day_read_in_the_handler) : forked_process_ids << process_id
+    end
+
+    streams.publish(payload_serving_tuesday)
+    process_id_of_the_fork = forked_process_ids.pop(timeout: 5)
+    report_writer.close
+    [payload_serving_monday, payload_serving_tuesday, payload_serving_monday].each { |text| streams.publish(text) }
+    days_the_parent_was_updated_to = Array.new(4) { days_updated_to.pop(timeout: 5) }
+
+    expect(exit_status_within(5, process_id_of_the_fork)&.exitstatus).to eq(0)
+    expect(report_reader.read).to eq("Tuesday")
+    expect(days_the_parent_was_updated_to).to eq(%w[Tuesday Monday Tuesday Monday])
+  end
+
+  it "sends no close notice on the parent's TLS stream from a forked process that a handler forked" do
+    report = Dir.mktmpdir do |folder|
+      certificate_path, key_path = SelfSignedCertificate.new.write_into(folder)
+      IO.popen(
+        { "SSL_CERT_FILE" => certificate_path },
+        [RbConfig.ruby, "-I", File.expand_path("../../lib", __dir__),
+         File.expand_path("../support/process_forking_in_a_handler_over_tls.rb", __dir__), certificate_path, key_path],
+        &:read
+      )
+    end
+
+    expect(JSON.parse(report)).to eq(
+      "exit_status_of_the_forked_process" => 0, "ends_of_a_stream_seen_by_the_server" => [],
+      "day_served_by_the_parent" => "Wednesday"
+    )
+  end
+
+  it "polls on one thread in a forked process that a handler of the first poll forked" do
+    client = client_connecting_to(sdk_server.url, mode: "polling")
+    process_id_of_the_parent = Process.pid
+    report_reader, report_writer = IO.pipe
+    forked_process_ids = Queue.new
+    client.on(:client_ready) { forked_process_ids << fork }
+    initializing = Thread.new do
+      client.init
+      next if Process.pid == process_id_of_the_parent
+
+      wait_up_to(5) { sdk_threads_alive.one? { |thread| thread.name == "configdirector-polling" } }
+      sleep(0.2)
+      report_writer.write(JSON.generate(sdk_threads_alive.map(&:name).sort))
+      exit!(0)
+    end
+
+    sdk_server.next_poll_request.answer(status: 200, body: payload_serving_monday)
+    exit_status_within(10, forked_process_ids.pop(timeout: 5))
+    report_writer.close
+    initializing.join(10)
+
+    expect(JSON.parse(report_reader.read)).to eq(%w[configdirector-polling configdirector-telemetry])
+  end
+
+  it "becomes ready in a forked process taken while another thread waited in init for a first poll" do
+    client = client_connecting_to(sdk_server.url, mode: "polling", timeout: 30)
+    start_init_of(client)
+    poll_of_the_parent = sdk_server.next_poll_request
+
+    forked_process = ForkedProcess.reporting do
+      client.init
+      [client.ready?, client.get_value("day-of-the-week", "Sunday")]
+    end
+    poll_of_the_forked_process = sdk_server.next_poll_request
+    poll_of_the_forked_process.answer(status: 200, body: payload_serving_tuesday)
+    ready_and_day_in_the_forked_process = forked_process.report
+    poll_of_the_parent.answer(status: 200, body: payload_serving_monday)
+
+    expect(ready_and_day_in_the_forked_process).to eq([true, "Tuesday"])
+  end
+
+  it "leaves no SDK thread in a forked process that closes the client as soon as it is forked" do
+    streams = streams_opened_with(payload_serving_monday)
+    client = client_connecting_to(sdk_server.url)
+    client.init
+
+    forked_process = ForkedProcess.reporting do
+      client.close
+      sleep(0.5)
+      sdk_threads_alive.map(&:name)
+    end
+    sdk_threads_left_in_the_forked_process = forked_process.report
+    streams.publish(payload_serving_tuesday)
+
+    expect(sdk_threads_left_in_the_forked_process).to eq([])
+    expect(day_served_once_it_is_no_longer("Monday", client)).to eq("Tuesday")
+  end
+
+  context "with a logger that writes each line under a lock, as Ruby's Logger does" do
+    let(:logger) { RecordingLoggerWritingUnderALock.new }
+
+    it "restarts in a process forked by a signal handler while the forking thread held a lock the restart takes" do
+      streams_opened_with(payload_serving_monday)
+      client = client_connecting_to(sdk_server.url)
+      client.init
+      days_watched = Queue.new
+      client.watch("day-of-the-week", "Sunday") { |day| days_watched << day }
+      process_id_of_the_parent = Process.pid
+      report_reader, report_writer = IO.pipe
+      forked_process_ids = Queue.new
+      handler_before = Signal.trap("USR1") { forked_process_ids << fork }
+      logger.send_once_while_the_lock_is_held("USR1")
+
+      client.get_value("day-of-the-week", "Sunday")
+      unless Process.pid == process_id_of_the_parent
+        report_writer.write(days_watched.pop(timeout: 5).to_s)
+        exit!(0)
       end
+      exit_status_within(10, forked_process_ids.pop(timeout: 5))
+      report_writer.close
+
+      expect(report_reader.read).to eq("Monday")
+    ensure
+      Signal.trap("USR1", handler_before)
+    end
+  end
+
+  context "with a logger that takes its time over the line about the restart" do
+    let(:logger) { RecordingLoggerPausingAtALine.new("Restarting the connection in forked process", 0.3) }
+
+    it "leaves no SDK thread in a forked process that closes the client while its connection restarts" do
+      client, = streaming_client_initialized_with(payload_serving_monday)
+
+      forked_process = ForkedProcess.reporting do
+        logger.pauses_begun.pop(timeout: 5)
+        client.close
+        sleep(0.5)
+        sdk_threads_alive.map(&:name)
+      end
+
+      expect(forked_process.report).to eq([])
+      expect(client.closed?).to be(false)
     end
 
-    exit_statuses = Array.new(50) do
-      process_id = fork { exit!(%w[Monday Tuesday].include?(client.get_value("day-of-the-week", "Sunday"))) }
-      exit_status_within(5, process_id)
-    end
-    thread_streaming_updates.kill.join
+    it "returns from an init in a forked process once the restart has left the first values to the parent" do
+      client = client_connecting_to(sdk_server.url, timeout: 5)
+      handler_may_finish = Queue.new
+      client.on(:client_ready) { handler_may_finish.pop }
+      start_init_of(client)
+      stream_of_the_parent = sdk_server.next_stream_request
+      stream_of_the_parent.open_event_stream
+      stream_of_the_parent.send_event(payload_serving_monday)
+      wait_up_to(5) { client.ready? }
 
-    expect(exit_statuses.count { |exit_status| exit_status&.success? }).to eq(50)
+      seconds_init_took_in_the_forked_process = ForkedProcess.reporting { seconds_taken { client.init } }.report
+      handler_may_finish << true
+
+      expect(seconds_init_took_in_the_forked_process).to be_between(0.2, 3)
+    end
   end
 
   context "with a logger that fails on every line about the forked process" do

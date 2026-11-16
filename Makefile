@@ -1,5 +1,5 @@
 .PHONY: install hooks verify-ruby verify-lock format lint _lint test test-lowest samples-local build audit check-floor \
-	_check-floor check check-all clean
+	_check-floor check check-all clean profile profile-fork-per-job
 
 # Every gem this repository publishes, each in a directory named after it. Narrow a target to one of them with,
 # for example, `make test GEMS=configdirector-server-sdk`.
@@ -22,6 +22,11 @@ FLOOR_IMAGE_$(PROVIDER) := ruby:3.4
 # values the way an application would, whose type errors are deliberate and listed in its expectations file.
 STEEP_OPTIONS_$(SDK) := --with-expectations=spec/signature_fixture/steep_expectations.yml
 STEEP_OPTIONS_$(PROVIDER) :=
+
+# Ruby code outside a gem's directory that the gem's RuboCop checks with it: the measurements under profiling/ run on
+# the SDK, with its bundle.
+ALSO_LINTED_WITH_$(SDK) := ../profiling
+ALSO_LINTED_WITH_$(PROVIDER) :=
 
 install:
 	@for project in $(PROJECTS); do \
@@ -62,7 +67,7 @@ lint: install
 
 _lint:
 	@printf '\n\033[1m==> lint %s\033[0m\n' "$(GEM)"
-	@cd "$(GEM)" && bundle exec rubocop && bundle exec steep check $(STEEP_OPTIONS_$(GEM))
+	@cd "$(GEM)" && bundle exec rubocop . $(ALSO_LINTED_WITH_$(GEM)) && bundle exec steep check $(STEEP_OPTIONS_$(GEM))
 
 test: install
 	@for gem in $(GEMS); do \
@@ -132,6 +137,14 @@ check: lint test
 # Everything CI runs. The pre-push hook calls this.
 check-all: verify-ruby verify-lock lint test test-lowest samples-local build audit check-floor
 	@printf '\n\033[1m✓ all checks passed\033[0m\n'
+
+# Measurements, not checks: what a read, a payload and an init cost, and what forking for each job costs. Their
+# numbers depend on the machine, so nothing in check-all runs them. See profiling/README.md.
+profile: install
+	@cd $(SDK) && bundle exec ruby ../profiling/benchmark.rb
+
+profile-fork-per-job: install
+	@cd $(SDK) && bundle exec ruby ../profiling/fork_per_job.rb
 
 clean:
 	rm -rf dist
