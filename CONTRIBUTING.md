@@ -132,7 +132,7 @@ Each gem is released on its own, by running its workflow by hand. A gem's versio
 2. **Version.** Set it to `X.Y.Z`, run `make install` to update the lock files, and merge to `main`.
 3. **Dry run.** Run the gem's workflow against `main` with **dry_run** checked. It runs every check, has RubyGems
    accept the workflow, and publishes nothing. Needed before a gem's first release, and after a change to the
-   publish job, the `release` environment or the gem's trusted publisher.
+   publish job or the gem's trusted publisher.
 4. **Release.** Run the gem's workflow against `main`.
 
 > [!IMPORTANT]
@@ -180,7 +180,7 @@ The publish job prints RubyGems' answer:
 
 | The job prints | Cause |
 |---|---|
-| `RubyGems did not exchange the identity token of this job for a key (HTTP 404)` | RubyGems knows no trusted publisher with this repository, this workflow file name and the `release` environment. The pending publisher was never created or has a field that differs, or the gem exists and its **Trusted publishers** page does not list this workflow. |
+| `RubyGems did not exchange the identity token of this job for a key (HTTP 404)` | RubyGems knows no trusted publisher with this repository and this workflow file name. The pending publisher was never created, has a field that differs or names an environment, or the gem exists and its **Trusted publishers** page does not list this workflow. |
 | `... (HTTP 400): {"error":"Unknown owner ..."}` | `RUBYGEMS_OWNER_ID` is not the ID of a RubyGems account. |
 | `You are not allowed to push this gem.` | The exchange worked and the push was refused. The account that `RUBYGEMS_OWNER_ID` names has no pending trusted publisher for this gem name with time left, or the gem exists and this workflow is not among its trusted publishers. |
 | `GitHub did not give this job an identity token` or `This job may not request an identity token from GitHub` | The publish job lost its `id-token: write` permission. |
@@ -208,15 +208,17 @@ Each gem's `LICENSE` is a copy of the one at the root.
 
 - **They share no reusable workflow.** RubyGems trusts a workflow file to publish a gem, so each file can publish
   its own gem and no other.
-- **No RubyGems credential is stored in GitHub.** The publish job, the only job in the `release` environment,
-  hands its GitHub identity token to RubyGems, which answers with a key that can push that gem alone and expires
-  within minutes.
+- **No RubyGems credential is stored in GitHub.** The publish job hands its GitHub identity token to RubyGems,
+  which answers with a key that can push that gem alone and expires within minutes.
+- **Write access to this repository is the permission to release.** The publish job runs in no GitHub
+  environment, so RubyGems trusts the workflow file on any branch, and the refusal of a branch other than `main`
+  is a step of that file.
 - **The exchange is our own script**, [publish-gem.rb](.github/scripts/publish-gem.rb), not
   `rubygems/configure-rubygems-credentials`. Since 2026-10-30 RubyGems lets a workflow create a new gem only when
   the exchange names the account that will own it, which that action (v2.1.0) cannot do. The script names it from
-  the `RUBYGEMS_OWNER_ID` variable of the `release` environment.
-- **Before renaming a workflow file or the `release` environment**, change the gem's trusted publisher on
-  RubyGems, on the gem's page under **Trusted publishers**.
+  the repository variable `RUBYGEMS_OWNER_ID`.
+- **Before renaming a workflow file**, change the gem's trusted publisher on RubyGems, on the gem's page under
+  **Trusted publishers**.
 - **The scripts:** the refusals are in [release-preflight.sh](.github/scripts/release-preflight.sh), the check of
   a built gem in [verify-built-gem.rb](tools/verify-built-gem.rb) and the push in
   [publish-gem.rb](.github/scripts/publish-gem.rb). `make test-release` runs all three.
@@ -243,22 +245,25 @@ Prove it. curl asks for the account's password and sends it to RubyGems alone. T
 curl --silent --user <username> https://rubygems.org/api/v1/profile/me.json
 ```
 
-#### 2. The `release` environment on GitHub
+#### 2. The `RUBYGEMS_OWNER_ID` variable on GitHub
 
-In this repository on GitHub, open **Settings**, then **Environments**, then **New environment**.
-
-| On the page | Value | What it is for, and what goes wrong otherwise |
-|---|---|---|
-| **Name** | `release`, then **Configure environment** | The environment the publish job runs in and RubyGems trusts. Under another name the publish job stops with `RUBYGEMS_OWNER_ID is ''`. |
-| **Deployment branches and tags** | **Selected branches and tags**, with one rule for the branch `main` | Only a run against `main` may publish. With **No restriction**, a workflow file changed on any branch could publish a gem. With a rule that does not match `main`, GitHub refuses the publish job. |
-| **Environment variables**, **Add variable** | **Name** `RUBYGEMS_OWNER_ID`, **Value** the `id` from step 1 | The account that will own a gem this workflow creates. A username or an empty value stops the publish job with `RUBYGEMS_OWNER_ID is '...'`. Another account's ID makes a gem's first push fail with `You are not allowed to push this gem.` |
-
-Prove it. The commands have to print `release`, then `main`, then `RUBYGEMS_OWNER_ID` and the ID.
+The release workflows tell RubyGems which account will own a gem they create. Set the variable to the `id` from
+step 1:
 
 ```sh
-gh api repos/ConfigDirector/ruby-sdks/environments --jq '.environments[].name'
-gh api repos/ConfigDirector/ruby-sdks/environments/release/deployment-branch-policies --jq '.branch_policies[].name'
-gh api repos/ConfigDirector/ruby-sdks/environments/release/variables --jq '.variables[] | "\(.name) \(.value)"'
+gh variable set RUBYGEMS_OWNER_ID --repo ConfigDirector/ruby-sdks --body <id from step 1>
+```
+
+On GitHub the same is **Settings**, **Secrets and variables**, **Actions**, the **Variables** tab, then
+**New repository variable** with **Name** `RUBYGEMS_OWNER_ID` and **Value** the ID.
+
+A username or an empty value stops the publish job with `RUBYGEMS_OWNER_ID is '...'`. Another account's ID makes a
+gem's first push fail with `You are not allowed to push this gem.`
+
+Prove it. The command has to print the ID.
+
+```sh
+gh variable get RUBYGEMS_OWNER_ID --repo ConfigDirector/ruby-sdks
 ```
 
 #### 3. The gem names are free
@@ -287,17 +292,17 @@ Signed in as the owning account, open <https://rubygems.org/profile/oidc/pending
 | **Repository owner** | `ConfigDirector` | The repository whose workflow RubyGems trusts. A wrong owner makes the exchange fail with HTTP 404. |
 | **Repository name** | `ruby-sdks` | The same: a wrong name makes the exchange fail with HTTP 404. |
 | **Workflow filename** | `release-configdirector-server-sdk.yml` | The file name alone, without `.github/workflows/`. Each gem has its own, `release-<gem>.yml`. A wrong name makes the exchange fail with HTTP 404. |
-| **Environment** | `release` | Another name makes the exchange fail with HTTP 404. Left blank, any job of that workflow file could publish. |
+| **Environment** | Leave blank | The publish job runs in no GitHub environment. With a name here, the exchange fails with HTTP 404. |
 | **Workflow Repository Owner** | Leave blank | Only for a reusable workflow kept in another repository. Filled in with this repository, the form is refused with `workflow_repository must be different from the repository`; with another one, the exchange fails with HTTP 404. |
 | **Workflow Repository Name** | Leave blank | The same as the row above. |
 
 Then click **Create Pending trusted publisher**.
 
 Prove it with the dry run of [Release a gem](#release-a-gem). Its publish job has to end with this line, naming
-the workflow file, the environment and the username of the owning account:
+the workflow file and the username of the owning account:
 
 ```
-RubyGems trusts this workflow as 'GitHub Actions ConfigDirector/ruby-sdks @ .github/workflows/release-configdirector-server-sdk.yml (release) ...', and reads the owner 123456 as the account '<username>'.
+RubyGems trusts this workflow as 'GitHub Actions ConfigDirector/ruby-sdks @ .github/workflows/release-configdirector-server-sdk.yml ...', and reads the owner 123456 as the account '<username>'.
 ```
 
 The dry run cannot prove the gem name or the time the pending publisher has left. The page shows both.

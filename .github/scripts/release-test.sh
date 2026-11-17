@@ -155,7 +155,7 @@ run_verify_built_gem() {
 rubygems_trusts_this_workflow() {
     stand_in_answers GET_identity-token 200 '{"value":"identity-token-of-the-job"}'
     stand_in_answers POST_api_v1_oidc_trusted_publisher_exchange_token 201 \
-        '{"rubygems_api_key":"rubygems_key_of_this_run","name":"GitHub Actions ConfigDirector/ruby-sdks @ .github/workflows/release-throwaway.yml (release) 2026-11-16T10:00:00Z","scopes":["push_rubygem"],"owner":"the-owning-account","expires_at":"2026-11-16T10:15:00.000Z"}'
+        '{"rubygems_api_key":"rubygems_key_of_this_run","name":"GitHub Actions ConfigDirector/ruby-sdks @ .github/workflows/release-throwaway.yml 2026-11-16T10:00:00Z","scopes":["push_rubygem"],"owner":"the-owning-account","expires_at":"2026-11-16T10:15:00.000Z"}'
 }
 
 # Runs the publish script on $built_gem as the publish job does, with the stand-in server as RubyGems and

@@ -48,7 +48,7 @@ end
 
 unless owner_id.match?(/\A\d+\z/)
   abort "RUBYGEMS_OWNER_ID is '#{owner_id}', and has to be the ID, a number, of the RubyGems account that owns " \
-        "the gems. It is a variable of the 'release' environment: see Releasing in CONTRIBUTING.md."
+        "the gems. It is a variable of this repository: see Releasing in CONTRIBUTING.md."
 end
 
 dry_run = DRY_RUN_BY_ITS_TEXT.fetch(dry_run_as_given) do

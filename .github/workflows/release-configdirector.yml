@@ -98,15 +98,14 @@ jobs:
           path: ${{ runner.temp }}/release/
           if-no-files-found: error
 
-  # The only job that may ask GitHub for an identity token, and the only one in the release environment, which
-  # is what RubyGems trusts. No credential is stored anywhere: the script exchanges the identity token for a key
-  # that RubyGems lets expire within minutes, and that never leaves the script.
+  # The only job that may ask GitHub for an identity token. No credential is stored anywhere: the script
+  # exchanges the identity token for a key that RubyGems lets expire within minutes, and that never leaves the
+  # script.
   publish:
     name: Publish to RubyGems
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: release
     permissions:
       contents: read
       id-token: write
@@ -124,8 +123,8 @@ jobs:
           name: release
           path: ${{ runner.temp }}/release/
 
-      # RUBYGEMS_OWNER_ID is a variable of the release environment: the ID of the RubyGems account that owns
-      # the gems, which RubyGems requires before a workflow may create a gem for that account.
+      # RUBYGEMS_OWNER_ID is a variable of this repository: the ID of the RubyGems account that owns the gems,
+      # which RubyGems requires before a workflow may create a gem for that account.
       - name: Exchange the identity token of this job for a RubyGems key and push the gem
         env:
           VERSION: ${{ needs.build.outputs.version }}
