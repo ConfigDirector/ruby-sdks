@@ -29,9 +29,9 @@ Rules to keep:
   gemspec before the gem, so requiring it would define the gem's module too early.
 - **Each gem ships a file named after the gem**, such as `lib/configdirector-server-sdk.rb`, because
   `Bundler.require` loads a gem by its gem name.
-- **A sample is its own Bundler project** and installs into its own `vendor/bundle`. Until a gem's first release,
-  its samples take it from this working tree. CI runs the samples on Ubuntu only, and on Windows the Makefile
-  targets take `SAMPLES=`.
+- **A sample is its own Bundler project** and installs into its own `vendor/bundle`. Its `Gemfile` names a
+  released version of the gem it shows, the way an application does. CI runs the samples on Ubuntu only, and on
+  Windows the Makefile targets take `SAMPLES=`.
 
 ## Working on the gems
 
@@ -48,7 +48,8 @@ your `PATH`.
 | `make format` | RuboCop's safe corrections |
 | `make test-lowest` | The suites with each runtime dependency at the lowest version the gemspec allows |
 | `make test-release` | The release scripts, against throwaway repositories and a stand-in for RubyGems |
-| `make samples-local` | The samples' suites against this working tree |
+| `make samples` | The samples' suites against the released gems their locks name |
+| `make samples-local` | The same suites against the gems in this working tree |
 | `make build` | Builds each gem into `dist/` and checks [what it holds](#what-a-gem-ships) |
 | `make audit` | `bundle-audit` against each lock |
 | `make check-floor` | Lint and tests on each gem's oldest Ruby line, in Docker |
@@ -134,6 +135,8 @@ Each gem is released on its own, by running its workflow by hand. A gem's versio
    accept the workflow, and publishes nothing. Needed before a gem's first release, and after a change to the
    publish job or the gem's trusted publisher.
 4. **Release.** Run the gem's workflow against `main`.
+5. **Samples.** In each of the gem's samples, run `bundle update <gem>` and merge its `Gemfile.lock`, so the
+   sample installs the new version.
 
 > [!IMPORTANT]
 > A gem's first release also needs a pending trusted publisher, created on RubyGems the same day:

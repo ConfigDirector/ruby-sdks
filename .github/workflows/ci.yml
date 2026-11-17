@@ -113,4 +113,5 @@ jobs:
 
       - run: make verify-ruby
       - run: make verify-lock GEMS=
+      - run: make samples
       - run: make samples-local

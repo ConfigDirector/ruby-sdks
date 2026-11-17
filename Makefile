@@ -1,5 +1,5 @@
-.PHONY: install hooks verify-ruby verify-lock format lint _lint test test-lowest test-release samples-local build \
-	release-check audit check-floor _check-floor check check-all clean profile profile-fork-per-job
+.PHONY: install hooks verify-ruby verify-lock format lint _lint test test-lowest test-release samples samples-local \
+	build release-check audit check-floor _check-floor check check-all clean profile profile-fork-per-job
 
 # Every gem with code that this repository publishes, each in a directory named after it. Narrow a target to one of
 # them with, for example, `make test GEMS=configdirector-server-sdk`.
@@ -12,9 +12,9 @@ GEMS := $(SDK) $(PROVIDER)
 BARE_NAME_GEM := configdirector
 PUBLISHED_GEMS := $(GEMS) $(BARE_NAME_GEM)
 
-# Sample applications, each a Bundler project under samples/<gem>/<framework> that takes the gems from this working
-# tree through a path: entry until their first release. `install`, `verify-lock`, `format`, `lint`, `audit` and
-# `clean` run on each sample as well as on each gem; `SAMPLES=` leaves the samples out.
+# Sample applications, each a Bundler project under samples/<gem>/<framework> that names a released version of the
+# gem it shows, the way an application does. `install`, `verify-lock`, `format`, `lint`, `audit` and `clean` run on
+# each sample as well as on each gem; `SAMPLES=` leaves the samples out.
 SAMPLES := samples/configdirector-server-sdk/rails
 
 PROJECTS := $(GEMS) $(SAMPLES)
@@ -103,13 +103,31 @@ test-release:
 	@printf '\n\033[1m==> test-release\033[0m\n'
 	.github/scripts/release-test.sh
 
-# The suite of each sample against the gems in this working tree, which is what catches a change to a gem that breaks
-# the code an application writes against it. Each sample installs its own bundle, so a Ruby line that one of the
-# gems does not support, such as 3.3 for the provider, can still run the samples of the other.
+# The suite of each sample against the released gem its Gemfile.lock names, the way an application installs it. Each
+# sample installs its own bundle, so a Ruby line that one of the gems does not support, such as 3.3 for the provider,
+# can still run the samples of the other.
+samples:
+	@for sample in $(SAMPLES); do \
+		printf '\n\033[1m==> samples %s (released gem)\033[0m\n' "$$sample"; \
+		(cd "$$sample" && bundle install --quiet && bundle exec rspec) || exit 1; \
+	done
+
+# The same suites against the gems in this working tree, which is what catches a change to a gem that breaks the
+# code an application writes against it; `samples` cannot, because a sample's lock names a release. Each sample is
+# copied to a throwaway directory, where the Gemfile line of each gem of this repository names the gem's directory
+# here, so the sample's own Gemfile and Gemfile.lock stay as they are. The copy uses the gems already installed in
+# the sample's vendor/bundle.
 samples-local:
 	@for sample in $(SAMPLES); do \
-		printf '\n\033[1m==> samples-local %s\033[0m\n' "$$sample"; \
-		(cd "$$sample" && bundle install --quiet && bundle exec rspec) || exit 1; \
+		printf '\n\033[1m==> samples-local %s (working-tree gems)\033[0m\n' "$$sample"; \
+		copy=$$(mktemp -d); \
+		tar -C "$$sample" --exclude=./vendor --exclude=./.bundle --exclude=./log --exclude=./tmp --exclude=./.env \
+			-cf - . | tar -C "$$copy" -xf - \
+		&& sed -E -i.released 's|^gem "(configdirector[^"]*)".*|gem "\1", path: "$(CURDIR)/\1"|' "$$copy/Gemfile" \
+		&& (cd "$$copy" \
+			&& BUNDLE_PATH="$(CURDIR)/$$sample/vendor/bundle" bundle install --quiet \
+			&& BUNDLE_PATH="$(CURDIR)/$$sample/vendor/bundle" bundle exec rspec); \
+		status=$$?; rm -rf "$$copy"; [ "$$status" -eq 0 ] || exit "$$status"; \
 	done
 
 # One .gem file per published gem under dist/. --strict turns every warning about the gemspec into a failure, and
@@ -166,7 +184,7 @@ _check-floor:
 check: lint test
 
 # Everything CI runs. The pre-push hook calls this.
-check-all: verify-ruby verify-lock lint test test-lowest test-release samples-local build audit check-floor
+check-all: verify-ruby verify-lock lint test test-lowest test-release samples samples-local build audit check-floor
 	@printf '\n\033[1m✓ all checks passed\033[0m\n'
 
 # Measurements, not checks: what a read, a payload and an init cost, and what forking for each job costs. Their

@@ -18,8 +18,8 @@ cp .env.example .env      # then set your server SDK key; the sample also runs w
 bundle exec puma
 ```
 
-Bundler installs the sample's gems into its own `vendor/bundle`, as [`.bundle/config`](.bundle/config) says, and
-takes the SDK from this working tree until the SDK's first release.
+Bundler installs the sample's gems, the released SDK among them, into its own `vendor/bundle`, as
+[`.bundle/config`](.bundle/config) says.
 
 Puma reads [`config/puma.rb`](config/puma.rb): 2 workers on port 3800. With more than one worker, Puma 7 and later
 load the application once, in the master process, and then fork the workers from it.

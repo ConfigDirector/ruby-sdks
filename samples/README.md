@@ -10,9 +10,9 @@ grouped by the gem they demonstrate.
 | [rails/](configdirector-server-sdk/rails/) | [Rails](https://rubyonrails.org) on [Puma](https://puma.io) | Minimal API app in cluster mode: one client per process, created on first use, and per-request evaluation |
 
 Each sample is an independent Bundler project with its own `Gemfile` and `Gemfile.lock`, and installs its gems into
-its own `vendor/bundle`. Until the SDK's first release, a sample takes it from this working tree through a `path:`
-entry in its `Gemfile`, so it runs the SDK as it is in your checkout. `make samples-local` runs the suite of every
-sample that way.
+its own `vendor/bundle`. A sample names a released version of the gem it shows, the way an application does.
+`make samples` runs the suite of every sample against that release, and `make samples-local` against the gems as
+they are in your checkout.
 
 To run one:
 

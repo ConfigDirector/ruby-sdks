@@ -3,7 +3,7 @@
 source "https://rubygems.org"
 
 gem "actionpack", "~> 8.1"
-gem "configdirector-server-sdk", path: "../../../configdirector-server-sdk"
+gem "configdirector-server-sdk", "~> 0.1"
 gem "puma", ">= 7.0"
 gem "railties", "~> 8.1"
 
