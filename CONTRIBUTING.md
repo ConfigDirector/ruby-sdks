@@ -27,8 +27,8 @@ entry point. `Bundler.require`, which a Rails application calls at startup, requ
 application loads the gem without a `require:` option in its `Gemfile`.
 
 The provider's `Gemfile` takes the SDK from its directory in this working tree, so the provider always develops
-against the SDK beside it. Before the provider's first release, its gemspec has to name a released version range
-of the SDK instead of the exact development version.
+against the SDK beside it. Its gemspec accepts the SDK in any `0.x` version from `0.1.0`, which is what an
+application that installs the provider gets from RubyGems.
 
 The lock files are committed. `make install` updates a lock after a change to its `Gemfile` or gemspec, and
 `make check-floor` proves the lock still installs, unchanged, on the gem's oldest Ruby line. Each lock lists the
@@ -153,8 +153,9 @@ gemspec, and then checks what each built gem holds: see [What a release publishe
 `make audit` runs `bundle-audit` against each lock with the latest advisory database.
 
 `make test-lowest` runs the suites with each runtime dependency of the gemspec at the lowest version the gemspec
-allows, such as `logger` 1.6 for `~> 1.6`, so they fail when the code needs something newer than that floor.
-Bundler resolves those versions into a throwaway `Gemfile` and lock, so the committed locks stay as they are.
+allows, such as `logger` 1.6 for `~> 1.6`, so they fail when the code needs something newer than that floor. The
+provider's suite still runs against the SDK in this working tree, not against the lowest SDK version its gemspec
+allows. Bundler resolves those versions into a throwaway `Gemfile` and lock, so the committed locks stay as they are.
 
 `make check-floor` runs `make verify-ruby verify-lock lint test` for each gem in the official image of its oldest
 Ruby line, `ruby:3.3` for the SDK and `ruby:3.4` for the provider, pulled again on every run so that it is the
@@ -162,8 +163,8 @@ newest release of that line, on a copy of this working tree.
 
 CI runs the SDK's suite on Ruby 3.3, 3.4 and 4.0 on Ubuntu, on Ruby 4.0 on macOS, and on Ruby 3.3 and 4.0 on
 Windows, the provider's suite on Ruby 3.4 and 4.0 on Ubuntu, the samples' suites on Ruby 3.3 and 4.0 on Ubuntu,
-and `make test-lowest`, the lint, `make test-release`, the build and the audit on Ruby 4.0. Locally, `make check-all` covers your own Ruby and,
-through `make check-floor`, each gem's oldest Ruby line.
+and `make test-lowest`, the lint, `make test-release`, the build and the audit on Ruby 4.0. Locally,
+`make check-all` covers your own Ruby and, through `make check-floor`, each gem's oldest Ruby line.
 
 The checks live in the [Makefile](Makefile). CI and the pre-push hook only call `make` targets, so add new checks
 there rather than in either of them.

@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name = "configdirector"
-  spec.version = "0.1.0-dev"
+  spec.version = "0.1.0"
   spec.authors = ["ConfigDirector"]
   spec.summary = "Installs configdirector-server-sdk, the Ruby server SDK for ConfigDirector."
   spec.description = "Installs configdirector-server-sdk, the Ruby server SDK for ConfigDirector. " \

@@ -21,6 +21,6 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir.glob(["lib/**/*.rb", "sig/**/*.rbs", "CHANGELOG.md", "LICENSE", "README.md"], base: __dir__)
 
-  spec.add_dependency "configdirector-server-sdk", "0.1.0-dev"
+  spec.add_dependency "configdirector-server-sdk", ">= 0.1.0", "< 1"
   spec.add_dependency "openfeature-sdk", ">= 0.8.1", "< 0.9"
 end

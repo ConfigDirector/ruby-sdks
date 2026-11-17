@@ -6,6 +6,9 @@ gemspec = Gem::Specification.load(File.join(gem_directory, "#{File.basename(gem_
 puts "eval_gemfile #{File.join(gem_directory, "Gemfile").dump}"
 
 gemspec.runtime_dependencies.each do |dependency|
+  gemspec_in_this_working_tree = File.join(File.dirname(gem_directory), dependency.name, "#{dependency.name}.gemspec")
+  next if File.exist?(gemspec_in_this_working_tree)
+
   lower_bounds = dependency.requirement.requirements.filter_map do |operator, version|
     version if [">=", "~>"].include?(operator)
   end

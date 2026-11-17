@@ -4,7 +4,7 @@
 
 Ruby server SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with JSON Schema validation and safe renames of live flags. Start free, no card required.
 
-The SDK requires Ruby 3.3 or later. It is in development and has not been released yet.
+The SDK requires Ruby 3.3 or later.
 
 ## Install
 

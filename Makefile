@@ -81,8 +81,9 @@ test: install
 	done
 
 # The same suites against the lowest version of each runtime dependency that the gemspec allows. Without this a
-# floor such as `logger ~> 1.6` is only ever a guess, because the lock picks the newest. Bundler resolves into a
-# throwaway Gemfile and lock, so the committed lock stays as it is.
+# floor such as `logger ~> 1.6` is only ever a guess, because the lock picks the newest. A dependency on another gem
+# of this repository stays the one in this working tree, which the gem's Gemfile names by its path. Bundler resolves
+# into a throwaway Gemfile and lock, so the committed lock stays as it is.
 test-lowest:
 	@for gem in $(GEMS); do \
 		printf '\n\033[1m==> test-lowest %s\033[0m\n' "$$gem"; \
