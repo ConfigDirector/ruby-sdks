@@ -5,6 +5,7 @@ module ConfigDirector
       end
 
       ID_OF_THE_PROCESS_THAT_STARTED_THE_THREAD: Symbol
+      ASKED_ITSELF_TO_STOP: Symbol
 
       @thread: Thread
 
@@ -16,7 +17,9 @@ module ConfigDirector
 
       def self.stop_here_if_asked_to: () -> void
 
-      private def self.stop_here_when_a_forked_process_copied_the_thread: () -> void
+      private def self.stop_here_when_the_thread_must_end: () -> void
+
+      private def self.copied_by_a_forked_process?: () -> bool
 
       def initialize: (Thread thread) -> void
 

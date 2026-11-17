@@ -49,6 +49,31 @@ RSpec.describe "A client shared between the application's threads and the SDK's"
     expect(sdk_threads_alive).to be_empty
   end
 
+  it "runs the rest of a watch that closes the client and then lets every interrupt through" do
+    client, stream_request = streaming_client_initialized_with(payload_serving_monday)
+    days_watched = Queue.new
+    client.watch("day-of-the-week", "Sunday") do |day|
+      client.close
+      Thread.handle_interrupt(Object => :immediate) { Thread.pass }
+      days_watched << day
+    end
+
+    stream_request.send_event(payload_serving_tuesday)
+    day_watched = days_watched.pop(timeout: 5)
+
+    expect(day_watched).to eq("Tuesday")
+  end
+
+  it "reports what a watch evaluated when the watch closes the client" do
+    client, stream_request = streaming_client_initialized_with(payload_serving_monday)
+    client.watch("day-of-the-week", "Sunday") { |_day| client.close }
+
+    stream_request.send_event(payload_serving_tuesday)
+    events_reported = sdk_server.next_telemetry_request(within: 5).json.fetch("aggregatedEvents")
+
+    expect(events_reported.fetch("evaluatedConfig").length).to eq(1)
+  end
+
   it "registers and removes watches and handlers from inside a configs_updated handler" do
     client, stream_request = streaming_client_initialized_with(payload_serving_monday)
     days_watched = Queue.new
