@@ -74,7 +74,7 @@ jobs:
 
       - run: make verify-ruby
       - run: make verify-lock GEMS=configdirector-server-sdk SAMPLES=
-      - run: make test GEMS=configdirector-server-sdk
+      - run: make test GEMS=configdirector-server-sdk SAMPLES=
 
   provider:
     name: Test configdirector-openfeature-server-provider (Ruby ${{ matrix.ruby }} on ${{ matrix.os }})
@@ -94,7 +94,7 @@ jobs:
 
       - run: make verify-ruby
       - run: make verify-lock GEMS=configdirector-openfeature-server-provider SAMPLES=
-      - run: make test GEMS=configdirector-openfeature-server-provider
+      - run: make test GEMS=configdirector-openfeature-server-provider SAMPLES=
 
   # Each gem's samples on the oldest Ruby line the gem supports and on the newest.
   samples:
