@@ -9,6 +9,12 @@ grouped by the gem they demonstrate.
 |---|---|---|
 | [rails/](configdirector-server-sdk/rails/) | [Rails](https://rubyonrails.org) on [Puma](https://puma.io) | Minimal API app in cluster mode: one client per process, created on first use, and per-request evaluation |
 
+## [configdirector-openfeature-server-provider](configdirector-openfeature-server-provider/)
+
+| Sample | Framework | Description |
+|---|---|---|
+| [sinatra/](configdirector-openfeature-server-provider/sinatra/) | [Sinatra](https://sinatrarb.com) on [Puma](https://puma.io) | Minimal app reading configs through OpenFeature: one provider per process, registered on first use, and per-request evaluation context |
+
 Each sample is an independent Bundler project with its own `Gemfile` and `Gemfile.lock`, and installs its gems into
 its own `vendor/bundle`. A sample names a released version of the gem it shows, the way an application does.
 `make samples` runs the suite of every sample against that release, and `make samples-local` against the gems as
@@ -22,6 +28,6 @@ bundle install
 bundle exec puma
 ```
 
-> The samples need a real server SDK key to resolve configs. Without one ConfigDirector refuses the connection, the
-> client stays not ready and every config falls back to the in-code default value the sample passes in, which is
-> also what a production app sees when it cannot reach ConfigDirector.
+> The samples need a real server SDK key to resolve configs. Without one ConfigDirector refuses the connection, no
+> config arrives, and every config falls back to the in-code default value the sample passes in, which is also what
+> a production app sees when it cannot reach ConfigDirector.

@@ -30,7 +30,8 @@ Rules to keep:
 - **Each gem ships a file named after the gem**, such as `lib/configdirector-server-sdk.rb`, because
   `Bundler.require` loads a gem by its gem name.
 - **A sample is its own Bundler project** and installs into its own `vendor/bundle`. Its `Gemfile` names a
-  released version of the gem it shows, the way an application does. CI runs the samples on Ubuntu only, and on
+  released version of the gem it shows, the way an application does. A provider sample names the SDK too, so that
+  `make samples-local` runs it on the SDK in this working tree as well. CI runs the samples on Ubuntu only, and on
   Windows the Makefile targets take `SAMPLES=`.
 
 ## Working on the gems
@@ -59,8 +60,8 @@ your `PATH`.
 - **One gem:** `make test GEMS=configdirector-server-sdk`. **Without the samples:** add `SAMPLES=`.
 - **New checks go in the [Makefile](Makefile).** CI and the pre-push hook only call `make` targets.
 - **CI covers more than `make check-all`.** It runs the SDK's suite on Ubuntu (Ruby 3.3, 3.4 and 4.0), macOS
-  (4.0) and Windows (3.3 and 4.0), the provider's on Ubuntu (3.4 and 4.0) and the samples' on Ubuntu (3.3 and
-  4.0). `make check-all` covers your own Ruby and each gem's oldest Ruby line.
+  (4.0) and Windows (3.3 and 4.0), the provider's on Ubuntu (3.4 and 4.0), and each gem's samples on Ubuntu on
+  the gem's oldest Ruby line and on 4.0. `make check-all` covers your own Ruby and each gem's oldest Ruby line.
 
 ### Lint and types
 

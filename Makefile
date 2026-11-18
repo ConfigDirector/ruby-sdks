@@ -15,7 +15,7 @@ PUBLISHED_GEMS := $(GEMS) $(BARE_NAME_GEM)
 # Sample applications, each a Bundler project under samples/<gem>/<framework> that names a released version of the
 # gem it shows, the way an application does. `install`, `verify-lock`, `format`, `lint`, `audit` and `clean` run on
 # each sample as well as on each gem; `SAMPLES=` leaves the samples out.
-SAMPLES := samples/configdirector-server-sdk/rails
+SAMPLES := samples/configdirector-server-sdk/rails samples/configdirector-openfeature-server-provider/sinatra
 
 PROJECTS := $(GEMS) $(SAMPLES)
 

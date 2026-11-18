@@ -15,7 +15,8 @@ Each gem has its own changelog, version, and release. Pick the server SDK to use
 ## Sample apps
 
 Small, runnable applications live under [`samples/`](samples/), grouped by the gem they demonstrate: for the server
-SDK, a Rails application served by Puma in cluster mode.
+SDK, a Rails application served by Puma in cluster mode, and for the OpenFeature provider, a Sinatra application
+served by Puma.
 
 ## Getting Help
 

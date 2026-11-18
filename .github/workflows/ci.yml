@@ -96,6 +96,7 @@ jobs:
       - run: make verify-lock GEMS=configdirector-openfeature-server-provider SAMPLES=
       - run: make test GEMS=configdirector-openfeature-server-provider
 
+  # Each gem's samples on the oldest Ruby line the gem supports and on the newest.
   samples:
     name: Sample apps (Ruby ${{ matrix.ruby }})
     runs-on: ubuntu-latest
@@ -103,7 +104,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ["3.3", "4.0"]
+        include:
+          - ruby: "3.3"
+            samples: samples/configdirector-server-sdk/rails
+          - ruby: "3.4"
+            samples: samples/configdirector-openfeature-server-provider/sinatra
+          - ruby: "4.0"
+            samples: samples/configdirector-server-sdk/rails samples/configdirector-openfeature-server-provider/sinatra
+    env:
+      SAMPLE_DIRECTORIES: ${{ matrix.samples }}
     steps:
       - uses: actions/checkout@v7
 
@@ -112,6 +121,6 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
 
       - run: make verify-ruby
-      - run: make verify-lock GEMS=
-      - run: make samples
-      - run: make samples-local
+      - run: make verify-lock GEMS= SAMPLES="$SAMPLE_DIRECTORIES"
+      - run: make samples SAMPLES="$SAMPLE_DIRECTORIES"
+      - run: make samples-local SAMPLES="$SAMPLE_DIRECTORIES"

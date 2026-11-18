@@ -131,6 +131,19 @@ Refer to the [official documentation for the OpenFeature Ruby provider](https://
 
 There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
 
+## Sample apps
+
+[`samples/configdirector-openfeature-server-provider/`](https://github.com/ConfigDirector/ruby-sdks/tree/main/samples/configdirector-openfeature-server-provider)
+holds small, runnable applications built on this provider. Start with
+[`sinatra`](https://github.com/ConfigDirector/ruby-sdks/tree/main/samples/configdirector-openfeature-server-provider/sinatra), a Sinatra
+application served by Puma:
+
+```bash
+cd samples/configdirector-openfeature-server-provider/sinatra
+bundle install
+bundle exec puma
+```
+
 ## Getting Help
 
 - [Ask a question in Discussions](https://github.com/orgs/ConfigDirector/discussions)
