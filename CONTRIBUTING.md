@@ -79,12 +79,17 @@ your `PATH`.
   directory and read the diff.
 - **`sig_missing_from_rbs/` holds signatures of Ruby's own classes that the released `rbs` gem lacks.** The gem
   does not ship it. Delete a file there once an `rbs` release has its signature.
+- **The provider's `sig_missing_from_openfeature_sdk/` holds the `new` of `openfeature-sdk`'s keyword structs**,
+  which the signatures `openfeature-sdk` ships lack. The gem does not ship it either.
 
 ### Specs
 
 - **No spec stubs `net/http`.** A spec that needs an SDK server starts `spec/support/scripted_sdk_server.rb`, a
   real server on a local port that the example scripts. It accepts telemetry reports by itself unless the example
-  calls `hold_telemetry_reports`.
+  calls `hold_telemetry_reports`. The provider's specs start the same server, through
+  `configdirector-openfeature-server-provider/spec/support/provider_over_the_scripted_sdk_server.rb`.
+- **The provider's `spec_helper.rb` loads `openfeature-sdk` before Ruby warnings fail the run.** `openfeature-sdk`
+  0.8.1 requires its own files in a circle, and Ruby warns about it once, when the gem loads.
 - **Every new regular expression gets an example** in `spec/configdirector/internal/regular_expressions_spec.rb`,
   which gives each one 100,000 characters written to make it backtrack and one second to answer.
 - **A handler that forks in an example forks once.** The forked process runs the same handler again, so set a

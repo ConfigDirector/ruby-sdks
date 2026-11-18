@@ -2,9 +2,22 @@ AllCops:
   NewCops: enable
   SuggestExtensions: false
 
+Metrics/BlockLength:
+  AllowedMethods:
+    - describe
+    - shared_context
+
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
 Naming/FileName:
   Exclude:
     - lib/configdirector-openfeature-server-provider.rb
+
+Style/Documentation:
+  Include:
+    - lib/configdirector/openfeature.rb
+    - lib/configdirector/openfeature/*.rb
 
 Style/StringLiterals:
   EnforcedStyle: double_quotes

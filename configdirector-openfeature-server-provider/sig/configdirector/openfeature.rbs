@@ -1,5 +1,91 @@
 module ConfigDirector
   module OpenFeature
     VERSION: String
+
+    class ConfigDirectorProvider
+      include ::OpenFeature::SDK::Provider::EventEmitter
+
+      ProviderEvent: singleton(::OpenFeature::SDK::ProviderEvent)
+      ErrorCode: singleton(::OpenFeature::SDK::Provider::ErrorCode)
+      NO_CONFIG_IN_TIME: String
+
+      @startup: Internal::Startup
+      @logger: _Logger & Object
+      @client: ConfigDirectorClient
+      @flag_reader: Internal::FlagReader
+
+      attr_reader metadata: ::OpenFeature::SDK::Provider::ProviderMetadata
+
+      def initialize: (
+        ?String? server_sdk_key,
+        ?metadata: Metadata?,
+        ?connection: ConnectionOptions?,
+        ?logger: (_Logger & Object)?,
+        ?log_level: (Integer | Symbol | String)?,
+        ?telemetry: TelemetryOptions?
+      ) -> void
+
+      def emits_lifecycle_events?: () -> true
+
+      def init: () -> void
+
+      def shutdown: () -> void
+
+      def track: (
+        String tracking_event_name,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?,
+        ?tracking_event_details: ::OpenFeature::SDK::TrackingEventDetails?
+      ) -> void
+
+      def fetch_boolean_value: (
+        flag_key: String,
+        default_value: bool,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      def fetch_string_value: (
+        flag_key: String,
+        default_value: String,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      def fetch_number_value: (
+        flag_key: String,
+        default_value: Numeric,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      def fetch_integer_value: (
+        flag_key: String,
+        default_value: Integer,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      def fetch_float_value: (
+        flag_key: String,
+        default_value: Float,
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      def fetch_object_value: (
+        flag_key: String,
+        default_value: Hash[String, untyped] | Array[untyped],
+        ?evaluation_context: ::OpenFeature::SDK::EvaluationContext?
+      ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+      private
+
+      def initialize_the_client: () -> void
+
+      def send_the_report: (:report_ready | :report_the_failure | :nothing report) -> void
+
+      def report_no_config_in_time: () -> bot
+
+      def report_the_configs_changed_by: (ConfigsUpdatedEvent update) -> void
+
+      def value_of: (::OpenFeature::SDK::TrackingEventDetails? tracking_event_details) -> untyped
+
+      def details_of: (::OpenFeature::SDK::TrackingEventDetails? tracking_event_details) -> Hash[String, untyped]?
+    end
   end
 end

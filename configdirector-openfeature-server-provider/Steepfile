@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
+LIBRARIES = %w[
+  configdirector-server-sdk openfeature-sdk date forwardable logger monitor net-http singleton time uri
+].freeze
+
 target :lib do
-  signature "sig"
+  signature "sig", "sig_missing_from_openfeature_sdk", "../configdirector-server-sdk/sig_missing_from_rbs"
+  library(*LIBRARIES)
   check "lib"
   configure_code_diagnostics(Steep::Diagnostic::Ruby.strict)
 end

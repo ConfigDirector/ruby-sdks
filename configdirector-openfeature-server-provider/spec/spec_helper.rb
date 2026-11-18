@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "open_feature/sdk"
+
 module RaiseOnRubyWarning
   def warn(message, category: nil, **)
     raise "Ruby warned#{" (#{category})" if category}: #{message}"

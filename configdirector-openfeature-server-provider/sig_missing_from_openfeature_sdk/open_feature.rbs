@@ -1,0 +1,20 @@
+module OpenFeature
+  module SDK
+    module Provider
+      class ResolutionDetails
+        def self.new: (
+          ?value: untyped,
+          ?reason: String?,
+          ?variant: String?,
+          ?error_code: String?,
+          ?error_message: String?,
+          ?flag_metadata: Hash[String, untyped]?
+        ) -> instance
+      end
+
+      class ProviderMetadata
+        def self.new: (?name: String?) -> instance
+      end
+    end
+  end
+end

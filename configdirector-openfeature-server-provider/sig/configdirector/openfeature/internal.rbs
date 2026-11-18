@@ -1,0 +1,90 @@
+module ConfigDirector
+  module OpenFeature
+    module Internal
+      module ConfigDirectorContext
+        MOST_LEVELS_OF_TRAITS: Integer
+
+        def self.of: (::OpenFeature::SDK::EvaluationContext? evaluation_context) -> Context?
+
+        private
+
+        def self.text_of: (untyped value) -> String?
+
+        def self.traits_of: (untyped traits) -> Hash[untyped, untyped]?
+
+        def self.with_dates_as_text: (untyped trait, Integer level) -> untyped
+      end
+
+      module DateText
+        def self.of: (untyped value) -> String?
+      end
+
+      module ResolutionDetailsByReason
+        Reason: singleton(::OpenFeature::SDK::Provider::Reason)
+        ErrorCode: singleton(::OpenFeature::SDK::Provider::ErrorCode)
+        RESOLUTION_DETAILS_BY_REASON: Hash[String, ^(ConfigEvaluation[config_value]) -> ::OpenFeature::SDK::Provider::ResolutionDetails]
+
+        def self.of_the_evaluation: (ConfigEvaluation[config_value] evaluation) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+        private
+
+        def self.served_value_resolution: (
+          ConfigEvaluation[config_value] evaluation,
+          String reason
+        ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+        def self.type_mismatch_resolution: (
+          ConfigEvaluation[config_value] evaluation
+        ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+        def self.failed_resolution: (
+          ConfigEvaluation[config_value] evaluation,
+          String error_code,
+          String error_message
+        ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+      end
+
+      class FlagReader
+        @client: ConfigDirectorClient
+
+        def initialize: (ConfigDirectorClient client) -> void
+
+        def read: (
+          String flag_key,
+          untyped default_value,
+          ::OpenFeature::SDK::EvaluationContext? evaluation_context
+        ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+        def read_a_number: (
+          String flag_key,
+          Numeric default_value,
+          ::OpenFeature::SDK::EvaluationContext? evaluation_context
+        ) -> ::OpenFeature::SDK::Provider::ResolutionDetails
+
+        private
+
+        def float_of: (untyped number) -> Float
+
+        def number_served_by: (ConfigEvaluation[Float] evaluation, Numeric default_value) -> untyped
+      end
+
+      class Startup
+        type stage = :initializing | :reporting_the_failure | :awaiting_config | :ready
+
+        @client: ConfigDirectorClient
+        @lock: Thread::Mutex
+        @stage: stage
+
+        def initialize: (ConfigDirectorClient client) -> void
+
+        def begin_initialization: () -> void
+
+        def report_due_after_initialization: () -> (:report_ready | :report_the_failure)
+
+        def report_due_after_the_failure: () -> (:report_ready | :nothing)
+
+        def report_due_when_config_arrives: () -> (:report_ready | :nothing)
+      end
+    end
+  end
+end
